@@ -1176,6 +1176,32 @@ function Estoque() {
   );
 }
 
+// ─── MÊS PICKER ──────────────────────────────────────────
+function MonthPicker({ value, onChange }) {
+  const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  const [ano, mes] = value.split("-").map(Number);
+
+  const anterior = () => {
+    const d = new Date(ano, mes - 2);
+    onChange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}`);
+  };
+
+  const proximo = () => {
+    const d = new Date(ano, mes);
+    onChange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,"0")}`);
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "6px 12px" }}>
+      <button onClick={anterior} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>‹</button>
+      <span style={{ fontWeight: 700, fontSize: 14, color: C.text, minWidth: 110, textAlign: "center" }}>
+        {meses[mes - 1]} de {ano}
+      </span>
+      <button onClick={proximo} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>›</button>
+    </div>
+  );
+}
+
 // ─── FINANCEIRO ───────────────────────────────────────────
 function Financeiro() {
   const [registros, setRegistros] = useState([]);
@@ -1210,7 +1236,7 @@ function Financeiro() {
       <div style={{ ...base.row, justifyContent: "space-between", marginBottom: 20 }}>
         <div style={base.pageTitle}>Financeiro</div>
         <div style={base.row}>
-          <input type="month" style={{ ...base.input, width: "auto" }} value={filtroMes} onChange={e => setFiltroMes(e.target.value)} />
+          <MonthPicker value={filtroMes} onChange={setFiltroMes} />
           <button style={base.btn()} onClick={() => setShowForm(!showForm)}>+ Lançamento</button>
         </div>
       </div>
@@ -1558,7 +1584,7 @@ function Relatorios() {
     <div>
       <div style={{ ...base.row, justifyContent: "space-between", marginBottom: 20 }}>
         <div style={base.pageTitle}>📈 Relatórios</div>
-        <input type="month" style={{ ...base.input, width: "auto" }} value={periodo} onChange={e => setPeriodo(e.target.value)} />
+        <MonthPicker value={periodo} onChange={setPeriodo} />
       </div>
 
       {loading && <div style={{ ...base.card, textAlign: "center", color: C.muted, padding: 40 }}>Carregando...</div>}
