@@ -751,12 +751,14 @@ function Comandas() {
     if (!selected) return;
     const existente = itens.find(i => i.produto_id === produto.id);
     if (existente) {
-      await supabase.from("comanda_itens").update({ quantidade: existente.quantidade + 1, subtotal: (existente.quantidade + 1) * produto.preco }).eq("id", existente.id);
+      await supabase.from("comanda_itens").update({ quantidade: existente.quantidade + 1, subtotal: (existente.quantidade + 1) * Number(produto.preco) }).eq("id", existente.id);
     } else {
       await supabase.from("comanda_itens").insert({ comanda_id: selected.id, produto_id: produto.id, quantidade: 1, preco_unitario: produto.preco, subtotal: produto.preco });
     }
-    await loadItens(selected.id);
-    const total = [...itens.filter(i => i.produto_id !== produto.id), { subtotal: existente ? (existente.quantidade + 1) * produto.preco : produto.preco }].reduce((a, i) => a + Number(i.subtotal), 0);
+    // Recarrega os itens atualizados e recalcula o total
+    const { data: itensAtualizados } = await supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id);
+    setItens(itensAtualizados || []);
+    const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);
     await supabase.from("comandas").update({ total }).eq("id", selected.id);
     loadComandas();
   };
