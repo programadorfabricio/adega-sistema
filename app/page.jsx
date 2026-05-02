@@ -796,7 +796,9 @@ function Comandas() {
     setProdutos(produtosAtualizados || []);
     const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);
     await supabase.from("comandas").update({ total }).eq("id", selected.id);
-    // Não fecha o modal nem recarrega tudo para não travar a tela
+    loadComandas(); // atualiza a lista lateral com o total novo
+    atualizandoManual.current = false;
+    setAdicionando(false);
   };
 
   const removerItem = async (item) => {
