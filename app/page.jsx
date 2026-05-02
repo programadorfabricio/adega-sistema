@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://hkonlaamribaopfvwcps.supabase.co";
@@ -723,15 +723,19 @@ function Comandas() {
     setProdutos(data || []);
   }, []);
 
+  const atualizandoManual = useRef(false);
+
   useEffect(() => {
     loadComandas();
     loadProdutos();
 
     const channel = supabase.channel("comandas-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, loadComandas)
-      .on("postgres_changes", { event: "*", schema: "public", table: "comanda_itens" }, async (payload) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, () => {
+        if (!atualizandoManual.current) loadComandas();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "comanda_itens" }, () => {
+        if (atualizandoManual.current) return; // ignora se foi atualização manual
         loadComandas();
-        // Se tem uma comanda selecionada, recarrega os itens dela também
         setSelected(prev => {
           if (prev) {
             supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", prev.id)
@@ -740,7 +744,9 @@ function Comandas() {
           return prev;
         });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, loadProdutos)
+      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, () => {
+        if (!atualizandoManual.current) loadProdutos();
+      })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -1029,16 +1035,20 @@ function Comandas() {
                     {itenscat.map(p => {
                       const esgotado = p.estoque_atual <= 0;
                       return (
-                        <button key={p.id} onClick={() => !esgotado && adicionarItem(p)} style={{
-                          background: esgotado ? "#111100" : C.card2,
-                          border: `1px solid ${C.border}`,
-                          borderRadius: 10,
-                          padding: "12px 14px",
-                          cursor: esgotado ? "not-allowed" : "pointer",
-                          textAlign: "left",
-                          opacity: esgotado ? 0.5 : 1,
-                          position: "relative",
-                        }}>
+                        <button key={p.id}
+                          onClick={() => !esgotado && adicionarItem(p)}
+                          onTouchEnd={(e) => { e.preventDefault(); if (!esgotado) adicionarItem(p); }}
+                          style={{
+                            background: esgotado ? "#111100" : C.card2,
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 10,
+                            padding: "12px 14px",
+                            cursor: esgotado ? "not-allowed" : "pointer",
+                            textAlign: "left",
+                            opacity: esgotado ? 0.5 : 1,
+                            position: "relative",
+                            WebkitTapHighlightColor: "transparent",
+                          }}>
                           {esgotado && (
                             <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>
                               ESGOTADO
@@ -1270,8 +1280,17 @@ function Estoque() {
     setEditModal(null); load();
   };
 
+  const [erroForm, setErroForm] = useState("");
+
   const salvar = async () => {
     if (!form.nome || !form.preco) return;
+    // Verifica se já existe produto com esse nome
+    const { data: existente } = await supabase.from("produtos").select("id").eq("nome", form.nome).eq("ativo", true).single();
+    if (existente) {
+      setErroForm(`Já existe um produto com o nome "${form.nome}". Use um nome diferente ou edite o produto existente.`);
+      return;
+    }
+    setErroForm("");
     await supabase.from("produtos").insert({ ...form, preco: Number(form.preco), estoque_atual: Number(form.estoque_atual), estoque_minimo: Number(form.estoque_minimo) });
     setForm({ nome: "", categoria: "bebida", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un" });
     setShowForm(false); load();
@@ -1326,8 +1345,9 @@ function Estoque() {
           </div>
           <div style={base.row}>
             <button style={base.btn(C.green, "#fff")} onClick={salvar}>Salvar Produto</button>
-            <button style={base.btnOutline} onClick={() => setShowForm(false)}>Cancelar</button>
+            <button style={base.btnOutline} onClick={() => { setShowForm(false); setErroForm(""); }}>Cancelar</button>
           </div>
+          {erroForm && <div style={{ ...base.alert(C.red), marginTop: 12, marginBottom: 0 }}>⚠️ {erroForm}</div>}
         </div>
       )}
 
