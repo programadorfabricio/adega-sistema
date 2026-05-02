@@ -759,19 +759,32 @@ function Comandas() {
 
   const adicionarItem = async (produto) => {
     if (!selected) return;
+
+    // Verifica estoque antes de adicionar
+    const { data: prodAtual } = await supabase.from("produtos").select("estoque_atual").eq("id", produto.id).single();
+    if (!prodAtual || prodAtual.estoque_atual <= 0) {
+      alert(`${produto.nome} está esgotado!`);
+      return;
+    }
+
     const existente = itens.find(i => i.produto_id === produto.id);
     if (existente) {
       await supabase.from("comanda_itens").update({ quantidade: existente.quantidade + 1, subtotal: (existente.quantidade + 1) * Number(produto.preco) }).eq("id", existente.id);
     } else {
       await supabase.from("comanda_itens").insert({ comanda_id: selected.id, produto_id: produto.id, quantidade: 1, preco_unitario: produto.preco, subtotal: produto.preco });
     }
-    // Baixa 1 no estoque
-    const { data: prod } = await supabase.from("produtos").select("estoque_atual").eq("id", produto.id).single();
-    if (prod) await supabase.from("produtos").update({ estoque_atual: Math.max(0, prod.estoque_atual - 1) }).eq("id", produto.id);
 
-    // Recarrega itens e recalcula total
-    const { data: itensAtualizados } = await supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id);
+    // Baixa 1 no estoque
+    await supabase.from("produtos").update({ estoque_atual: prodAtual.estoque_atual - 1 }).eq("id", produto.id);
+
+    // Recarrega tudo
+    const [{ data: itensAtualizados }, { data: produtosAtualizados }] = await Promise.all([
+      supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id),
+      supabase.from("produtos").select("*").eq("ativo", true).order("categoria"),
+    ]);
+
     setItens(itensAtualizados || []);
+    setProdutos(produtosAtualizados || []);
     const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);
     await supabase.from("comandas").update({ total }).eq("id", selected.id);
     loadComandas();
