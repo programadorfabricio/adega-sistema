@@ -471,8 +471,7 @@ export default function Comandas() {
                       return (
                         <button key={p.id}
                           onClick={() => !esgotado && adicionarItem(p)}
-                          onTouchEnd={(e) => { e.preventDefault(); if (!esgotado) adicionarItem(p); }}
-                          style={{ background: esgotado ? "#111100" : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative", WebkitTapHighlightColor: "transparent", transition: "background 0.2s" }}>
+                          style={{ background: esgotado ? "#111100" : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative" }}>
                           {esgotado && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>ESGOTADO</div>}
                           {adicionando && ultimoAdicionado === null && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: C.accent, background: `${C.accent}20`, padding: "2px 6px", borderRadius: 4 }}>...</div>}
                           <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
