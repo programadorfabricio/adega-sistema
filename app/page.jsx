@@ -723,7 +723,17 @@ function Comandas() {
 
     const channel = supabase.channel("comandas-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, loadComandas)
-      .on("postgres_changes", { event: "*", schema: "public", table: "comanda_itens" }, loadComandas)
+      .on("postgres_changes", { event: "*", schema: "public", table: "comanda_itens" }, async (payload) => {
+        loadComandas();
+        // Se tem uma comanda selecionada, recarrega os itens dela também
+        setSelected(prev => {
+          if (prev) {
+            supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", prev.id)
+              .then(({ data }) => setItens(data || []));
+          }
+          return prev;
+        });
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, loadProdutos)
       .subscribe();
 
