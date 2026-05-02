@@ -174,6 +174,7 @@ export default function Comandas() {
   const [pagamento, setPagamento] = useState("pix");
   const [loading, setLoading] = useState(false);
   const [adicionando, setAdicionando] = useState(false);
+  const [ultimoAdicionado, setUltimoAdicionado] = useState(null);
   const atualizandoManual = useRef(false);
 
   const loadComandas = useCallback(async () => {
@@ -253,6 +254,11 @@ export default function Comandas() {
     const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);
     await supabase.from("comandas").update({ total }).eq("id", selected.id);
     loadComandas();
+
+    // Feedback visual
+    setUltimoAdicionado(produto.nome);
+    setTimeout(() => setUltimoAdicionado(null), 1500);
+
     atualizandoManual.current = false;
     setAdicionando(false);
   };
@@ -437,6 +443,14 @@ export default function Comandas() {
               <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>Adicionar Item</div>
               <button style={base.btnSm(C.card2, C.muted)} onClick={() => setModalPedido(false)}>✕ Fechar</button>
             </div>
+
+            {/* Toast de confirmação */}
+            {ultimoAdicionado && (
+              <div style={{ background: `${C.green}20`, border: `1px solid ${C.green}50`, borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.green, fontWeight: 600, animation: "fadeIn 0.2s ease" }}>
+                <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+                ✅ {ultimoAdicionado} adicionado!
+              </div>
+            )}
             <input style={{ ...base.input, marginBottom: 16 }} value={busca} onChange={e => setBusca(e.target.value)} placeholder="🔍 Buscar produto..." autoFocus />
             {["espeto", "bebida", "outro"].map(cat => {
               const itenscat = produtosFiltrados.filter(p => p.categoria === cat);
@@ -451,8 +465,9 @@ export default function Comandas() {
                         <button key={p.id}
                           onClick={() => !esgotado && adicionarItem(p)}
                           onTouchEnd={(e) => { e.preventDefault(); if (!esgotado) adicionarItem(p); }}
-                          style={{ background: esgotado ? "#111100" : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative", WebkitTapHighlightColor: "transparent" }}>
+                          style={{ background: esgotado ? "#111100" : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative", WebkitTapHighlightColor: "transparent", transition: "background 0.2s" }}>
                           {esgotado && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>ESGOTADO</div>}
+                          {adicionando && ultimoAdicionado === null && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: C.accent, background: `${C.accent}20`, padding: "2px 6px", borderRadius: 4 }}>...</div>}
                           <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
                           <div style={{ fontSize: 13, color: esgotado ? C.muted : C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
                           <div style={{ fontSize: 11, color: esgotado ? "#a855f7" : p.estoque_atual <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>estoque: {p.estoque_atual}</div>

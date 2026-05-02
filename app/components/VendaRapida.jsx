@@ -28,6 +28,8 @@ export default function VendaRapida() {
   const filtrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
   const total = carrinho.reduce((a, i) => a + i.subtotal, 0);
 
+  const [ultimoAdicionado, setUltimoAdicionado] = useState(null);
+
   const add = (p) => {
     if (p.estoque_atual <= 0) return;
     const noCarrinho = carrinho.find(i => i.produto_id === p.id);
@@ -37,6 +39,9 @@ export default function VendaRapida() {
       if (ex) return c.map(i => i.produto_id === p.id ? { ...i, quantidade: i.quantidade + 1, subtotal: (i.quantidade + 1) * i.preco_unitario } : i);
       return [...c, { produto_id: p.id, nome_produto: p.nome, quantidade: 1, preco_unitario: p.preco, subtotal: p.preco }];
     });
+    // Feedback visual
+    setUltimoAdicionado(p.nome);
+    setTimeout(() => setUltimoAdicionado(null), 1500);
   };
 
   const changeQtd = (id, qtd) => {
@@ -73,6 +78,13 @@ export default function VendaRapida() {
           <div style={{ ...base.card, marginBottom: 12 }}>
             <input style={base.input} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
           </div>
+
+          {ultimoAdicionado && (
+            <div style={{ background: `${C.green}20`, border: `1px solid ${C.green}50`, borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.green, fontWeight: 600 }}>
+              <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+              ✅ {ultimoAdicionado} adicionado ao carrinho!
+            </div>
+          )}
           <div style={{ ...base.card, maxHeight: 520, overflowY: "auto" }}>
             {["espeto", "bebida", "outro"].map(cat => {
               const itens = filtrados.filter(p => p.categoria === cat);
