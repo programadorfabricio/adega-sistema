@@ -1081,7 +1081,9 @@ function VendaRapida() {
 
   const loadProdutos = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
-    setProdutos(data || []);
+    // Remove duplicatas pelo id único — ordena por nome para exibição limpa
+    const unicos = (data || []).filter((p, idx, arr) => arr.findIndex(x => x.id === p.id) === idx);
+    setProdutos(unicos);
   }, []);
 
   useEffect(() => {
@@ -1151,7 +1153,9 @@ function VendaRapida() {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
                     {itens.map(p => {
                       const noCarrinho = carrinho.find(i => i.produto_id === p.id);
-                      const esgotado = p.estoque_atual <= 0 || (noCarrinho && noCarrinho.quantidade >= p.estoque_atual);
+                      const qtdCarrinho = noCarrinho ? noCarrinho.quantidade : 0;
+                      const disponivelReal = p.estoque_atual - qtdCarrinho;
+                      const esgotado = disponivelReal <= 0;
                       return (
                         <button key={p.id} onClick={() => add(p)} disabled={esgotado} style={{
                           background: esgotado ? "#111100" : C.card2,
@@ -1168,7 +1172,9 @@ function VendaRapida() {
                           )}
                           <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
                           <div style={{ fontSize: 13, color: esgotado ? C.muted : C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
-                          <div style={{ fontSize: 11, color: p.estoque_atual <= 0 ? "#a855f7" : p.estoque_atual <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>estoque: {p.estoque_atual}</div>
+                          <div style={{ fontSize: 11, color: esgotado ? "#a855f7" : disponivelReal <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>
+                            disponível: {Math.max(0, disponivelReal)}
+                          </div>
                         </button>
                       );
                     })}
