@@ -57,7 +57,7 @@ function LoginScreen({ onLogin }) {
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <div style={{ fontSize: 52, marginBottom: 8 }}>🍺</div>
-          <div style={{ fontSize: 28, fontWeight: 900, color: C.accent }}>Adega</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: C.accent }}>Império Bebidas</div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Sistema de Gestão</div>
         </div>
 
