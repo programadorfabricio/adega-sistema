@@ -2,8 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_URL = "https://hkonlaamribaopfvwcps.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhrb25sYWFtcmliYW9wZnZ3Y3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2NzcwNjksImV4cCI6MjA5MzI1MzA2OX0.NMjf92ryAbVG2Owr_L3Jxq25htt-Fem_i1tKTxXigN4";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ─── TEMA ────────────────────────────────────────────────
@@ -158,19 +158,176 @@ const base = {
 
 // ─── SIDEBAR ────────────────────────────────────────────
 const PAGES = [
-  { id: "dashboard", label: "Dashboard", icon: "📊", group: "PRINCIPAL" },
-  { id: "comandas", label: "Comandas", icon: "🍺", group: "PRINCIPAL" },
-  { id: "venda", label: "Venda Rápida", icon: "⚡", group: "PRINCIPAL" },
-  { id: "estoque", label: "Estoque", icon: "📦", group: "GESTÃO" },
-  { id: "financeiro", label: "Financeiro", icon: "💰", group: "GESTÃO" },
-  { id: "historico", label: "Histórico", icon: "📋", group: "GESTÃO" },
-  { id: "relatorios", label: "Relatórios", icon: "📈", group: "GESTÃO" },
-  { id: "configuracoes", label: "Configurações", icon: "⚙️", group: "SISTEMA" },
+  { id: "dashboard", label: "Dashboard", icon: "📊", group: "PRINCIPAL", cargos: ["admin","gerente","atendente"] },
+  { id: "comandas", label: "Comandas", icon: "🍺", group: "PRINCIPAL", cargos: ["admin","gerente","atendente"] },
+  { id: "venda", label: "Venda Rápida", icon: "⚡", group: "PRINCIPAL", cargos: ["admin","gerente","atendente"] },
+  { id: "estoque", label: "Estoque", icon: "📦", group: "GESTÃO", cargos: ["admin","gerente"] },
+  { id: "financeiro", label: "Financeiro", icon: "💰", group: "GESTÃO", cargos: ["admin","gerente"] },
+  { id: "historico", label: "Histórico", icon: "📋", group: "GESTÃO", cargos: ["admin","gerente"] },
+  { id: "relatorios", label: "Relatórios", icon: "📈", group: "GESTÃO", cargos: ["admin","gerente"] },
+  { id: "configuracoes", label: "Configurações", icon: "⚙️", group: "SISTEMA", cargos: ["admin"] },
 ];
 
-function Sidebar({ page, setPage, open, setOpen }) {
-  const groups = [...new Set(PAGES.map(p => p.group))];
+// ─── TELA DE LOGIN ───────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [usuarios, setUsuarios] = useState([]);
+  const [selecionado, setSelecionado] = useState(null);
+  const [pin, setPin] = useState("");
+  const [erro, setErro] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from("usuarios").select("*").eq("ativo", true).order("nome")
+      .then(({ data }) => { setUsuarios(data || []); setLoading(false); });
+  }, []);
+
+  const digitarPin = (num) => {
+    if (pin.length >= 4) return;
+    const novo = pin + num;
+    setPin(novo);
+    setErro("");
+    if (novo.length === 4) verificarPin(novo);
+  };
+
+  const verificarPin = (p) => {
+    const user = selecionado;
+    if (!user) return;
+    if (user.pin === p) {
+      onLogin(user);
+    } else {
+      setErro("PIN incorreto. Tente novamente.");
+      setTimeout(() => setPin(""), 600);
+    }
+  };
+
+  const voltar = () => { setSelecionado(null); setPin(""); setErro(""); };
+
+  const cargoCor = { admin: C.accent, gerente: C.blue, atendente: C.green };
+
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ color: C.muted }}>Carregando...</div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit', sans-serif", padding: 20 }}>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+      <div style={{ width: "100%", maxWidth: 400 }}>
+        {/* Logo */}
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div style={{ fontSize: 52, marginBottom: 8 }}>🍺</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: C.accent, letterSpacing: "-0.02em" }}>Adega</div>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Sistema de Gestão</div>
+        </div>
+
+        {!selecionado ? (
+          /* Seleção de usuário */
+          <div>
+            <div style={{ fontSize: 13, color: C.muted, textAlign: "center", marginBottom: 20 }}>Quem está acessando?</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {usuarios.map(u => (
+                <button key={u.id} onClick={() => setSelecionado(u)} style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding: "16px 20px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  transition: "border-color 0.2s",
+                }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: `${cargoCor[u.cargo] || C.muted}20`, border: `1px solid ${cargoCor[u.cargo] || C.muted}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+                    {u.cargo === "admin" ? "👑" : u.cargo === "gerente" ? "🔑" : "👤"}
+                  </div>
+                  <div style={{ textAlign: "left" }}>
+                    <div style={{ fontWeight: 700, color: C.text, fontSize: 15 }}>{u.nome}</div>
+                    <div style={{ fontSize: 12 }}><span style={{ ...base.tag(cargoCor[u.cargo] || C.muted) }}>{u.cargo}</span></div>
+                  </div>
+                  <div style={{ marginLeft: "auto", color: C.muted, fontSize: 18 }}>›</div>
+                </button>
+              ))}
+              {usuarios.length === 0 && (
+                <div style={{ ...base.card, textAlign: "center", color: C.muted, padding: 32 }}>
+                  Nenhum usuário cadastrado.<br />
+                  <span style={{ fontSize: 12 }}>Cadastre usuários em Configurações.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Teclado PIN */
+          <div>
+            <button onClick={voltar} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", marginBottom: 20, display: "flex", alignItems: "center", gap: 6 }}>
+              ← Trocar usuário
+            </button>
+
+            <div style={{ ...base.card, textAlign: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 32, marginBottom: 6 }}>{selecionado.cargo === "admin" ? "👑" : selecionado.cargo === "gerente" ? "🔑" : "👤"}</div>
+              <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>{selecionado.nome}</div>
+              <div style={{ marginTop: 4 }}><span style={base.tag(cargoCor[selecionado.cargo] || C.muted)}>{selecionado.cargo}</span></div>
+            </div>
+
+            <div style={{ fontSize: 13, color: C.muted, textAlign: "center", marginBottom: 16 }}>Digite seu PIN</div>
+
+            {/* Indicador de dígitos */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 14, marginBottom: 28 }}>
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{
+                  width: 16, height: 16, borderRadius: "50%",
+                  background: i < pin.length ? C.accent : "transparent",
+                  border: `2px solid ${i < pin.length ? C.accent : C.border}`,
+                  transition: "all 0.15s",
+                }} />
+              ))}
+            </div>
+
+            {erro && <div style={{ ...base.alert(C.red), marginBottom: 16, justifyContent: "center" }}>{erro}</div>}
+
+            {/* Teclado numérico */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+              {[1,2,3,4,5,6,7,8,9].map(n => (
+                <button key={n} onClick={() => digitarPin(String(n))} style={{
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 14,
+                  padding: "20px",
+                  fontSize: 22,
+                  fontWeight: 700,
+                  color: C.text,
+                  cursor: "pointer",
+                  transition: "background 0.1s, border-color 0.1s",
+                  fontFamily: "'Outfit', sans-serif",
+                }}>
+                  {n}
+                </button>
+              ))}
+              <div />
+              <button onClick={() => digitarPin("0")} style={{
+                background: C.card, border: `1px solid ${C.border}`,
+                borderRadius: 14, padding: "20px", fontSize: 22,
+                fontWeight: 700, color: C.text, cursor: "pointer", fontFamily: "'Outfit', sans-serif",
+              }}>0</button>
+              <button onClick={() => setPin(p => p.slice(0,-1))} style={{
+                background: C.card, border: `1px solid ${C.border}`,
+                borderRadius: 14, padding: "20px", fontSize: 18,
+                color: C.muted, cursor: "pointer",
+              }}>⌫</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({ page, setPage, open, setOpen, usuario, onLogout }) {
+  const pages = PAGES.filter(p => p.cargos.includes(usuario?.cargo));
+  const groups = [...new Set(pages.map(p => p.group))];
   const navigate = (id) => { setPage(id); setOpen(false); };
+  const cargoCor = { admin: C.accent, gerente: C.blue, atendente: C.green };
 
   return (
     <>
@@ -197,12 +354,8 @@ function Sidebar({ page, setPage, open, setOpen }) {
       <div className="overlay" onClick={() => setOpen(false)} />
 
       <div className="sidebar" style={{
-        background: C.card,
-        borderRight: `1px solid ${C.border}`,
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
-        minHeight: "100vh",
+        background: C.card, borderRight: `1px solid ${C.border}`,
+        display: "flex", flexDirection: "column", flexShrink: 0, minHeight: "100vh",
       }}>
         <div style={{ padding: "24px 24px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
@@ -213,11 +366,22 @@ function Sidebar({ page, setPage, open, setOpen }) {
           <button onClick={() => setOpen(false)} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 20, cursor: "pointer" }}>✕</button>
         </div>
 
+        {/* Usuário logado */}
+        <div style={{ padding: "14px 24px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: `${cargoCor[usuario?.cargo] || C.muted}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+            {usuario?.cargo === "admin" ? "👑" : usuario?.cargo === "gerente" ? "🔑" : "👤"}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{usuario?.nome}</div>
+            <span style={base.tag(cargoCor[usuario?.cargo] || C.muted)}>{usuario?.cargo}</span>
+          </div>
+        </div>
+
         <div style={{ flex: 1, padding: "12px 0", overflowY: "auto" }}>
           {groups.map(group => (
             <div key={group}>
               <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: "0.15em", padding: "16px 24px 6px", textTransform: "uppercase" }}>{group}</div>
-              {PAGES.filter(p => p.group === group).map(p => {
+              {pages.filter(p => p.group === group).map(p => {
                 const active = page === p.id;
                 return (
                   <button key={p.id} onClick={() => navigate(p.id)} style={{
@@ -241,7 +405,9 @@ function Sidebar({ page, setPage, open, setOpen }) {
         </div>
 
         <div style={{ padding: "16px 24px", borderTop: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 11, color: C.muted }}>v1.0.0 · Adega Sistema</div>
+          <button onClick={onLogout} style={{ ...base.btnOutline, width: "100%", fontSize: 13, color: C.red, borderColor: `${C.red}40` }}>
+            🚪 Sair
+          </button>
         </div>
       </div>
     </>
@@ -1492,8 +1658,18 @@ function Relatorios() {
 
 // ─── APP ─────────────────────────────────────────────────
 export default function App() {
+  const [usuario, setUsuario] = useState(null);
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleLogin = (user) => {
+    setUsuario(user);
+    const primeiraPage = PAGES.find(p => p.cargos.includes(user.cargo));
+    setPage(primeiraPage?.id || "dashboard");
+  };
+
+  const handleLogout = () => { setUsuario(null); setPage("dashboard"); };
+
   const pageLabel = PAGES.find(p => p.id === page);
 
   const renderPage = () => {
@@ -1510,24 +1686,22 @@ export default function App() {
     }
   };
 
+  if (!usuario) return <LoginScreen onLogin={handleLogin} />;
+
   return (
     <div style={{ display: "flex", background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Outfit', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
-      <Sidebar page={page} setPage={setPage} open={sidebarOpen} setOpen={setSidebarOpen} />
+      <Sidebar page={page} setPage={setPage} open={sidebarOpen} setOpen={setSidebarOpen} usuario={usuario} onLogout={handleLogout} />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        {/* Topbar mobile */}
         <div className="topbar" style={{
           position: "fixed", top: 0, left: 0, right: 0, height: 56,
           background: C.card, borderBottom: `1px solid ${C.border}`,
           alignItems: "center", justifyContent: "space-between",
           padding: "0 16px", zIndex: 30,
         }}>
-          <button onClick={() => setSidebarOpen(true)} style={{
-            background: "transparent", border: "none",
-            color: C.accent, fontSize: 24, cursor: "pointer",
-          }}>☰</button>
+          <button onClick={() => setSidebarOpen(true)} style={{ background: "transparent", border: "none", color: C.accent, fontSize: 24, cursor: "pointer" }}>☰</button>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span>{pageLabel?.icon}</span>
             <span style={{ fontWeight: 800, color: C.text, fontSize: 15 }}>{pageLabel?.label}</span>
