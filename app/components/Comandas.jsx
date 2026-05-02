@@ -294,6 +294,13 @@ export default function Comandas() {
     }
   };
 
+  const abrirModalPedido = async () => {
+    const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
+    setProdutos(data || []);
+    setBusca("");
+    setModalPedido(true);
+  };
+
   const totalComanda = itens.reduce((a, i) => a + Number(i.subtotal), 0);
   const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
 
@@ -353,7 +360,7 @@ export default function Comandas() {
                   {selected.mesa && <div style={{ fontSize: 13, color: C.muted }}>Mesa {selected.mesa}</div>}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button style={base.btn(C.blue, "#fff")} onClick={() => { setBusca(""); setModalPedido(true); }}>+ Adicionar Item</button>
+                  <button style={base.btn(C.blue, "#fff")} onClick={abrirModalPedido}>+ Adicionar Item</button>
                   <button style={base.btn(C.green, "#fff")} onClick={() => setModalFechar(true)}>✅ Fechar Conta</button>
                 </div>
               </div>
