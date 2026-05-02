@@ -443,6 +443,15 @@ function Dashboard({ setPage }) {
       setAlertas(estoqueBaixo);
     }
     load();
+
+    const channel = supabase.channel("dashboard-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "vendas" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "financeiro" }, load)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, []);
 
   const cards = [
@@ -708,7 +717,18 @@ function Comandas() {
     setProdutos(data || []);
   }, []);
 
-  useEffect(() => { loadComandas(); loadProdutos(); }, [loadComandas, loadProdutos]);
+  useEffect(() => {
+    loadComandas();
+    loadProdutos();
+
+    const channel = supabase.channel("comandas-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, loadComandas)
+      .on("postgres_changes", { event: "*", schema: "public", table: "comanda_itens" }, loadComandas)
+      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, loadProdutos)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [loadComandas, loadProdutos]);
 
   const loadItens = useCallback(async (comandaId) => {
     const { data } = await supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", comandaId);
@@ -787,9 +807,18 @@ function Comandas() {
         <button style={base.btn()} onClick={() => setModalNova(true)}>+ Nova Comanda</button>
       </div>
 
-      <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
+      {/* Mobile: mostra detalhe em tela cheia quando comanda selecionada */}
+      <style>{`
+        @media (max-width: 768px) {
+          .comanda-lista { display: ${selected ? "none" : "block"} !important; }
+          .comanda-detalhe { display: ${selected ? "block" : "none"} !important; }
+          .comanda-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
+      <div className="comanda-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
         {/* Lista de comandas */}
-        <div>
+        <div className="comanda-lista">
           <div style={base.sectionTitle}>Abertas ({comandas.length})</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {comandas.map(c => (
@@ -822,16 +851,27 @@ function Comandas() {
         </div>
 
         {/* Detalhe da comanda */}
-        <div>
+        <div className="comanda-detalhe">
           {selected ? (
             <div>
+              {/* Botão voltar mobile */}
+              <button onClick={() => setSelected(null)} style={{
+                display: "none", background: "transparent", border: "none",
+                color: C.muted, fontSize: 13, cursor: "pointer",
+                marginBottom: 12, alignItems: "center", gap: 6,
+              }} className="btn-voltar-mobile">
+                ← Voltar
+              </button>
+              <style>{`.btn-voltar-mobile { @media (max-width: 768px) { display: flex !important; } }`}</style>
+
               <div style={{ ...base.card, marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
                   <div>
+                    <button onClick={() => setSelected(null)} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", marginBottom: 4, display: "block" }}>← Voltar</button>
                     <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>👤 {selected.nome_cliente}</div>
                     {selected.mesa && <div style={{ fontSize: 13, color: C.muted }}>Mesa {selected.mesa}</div>}
                   </div>
-                  <div style={base.row}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button style={base.btn(C.blue, "#fff")} onClick={() => { setBusca(""); setModalPedido(true); }}>+ Adicionar Item</button>
                     <button style={base.btn(C.green, "#fff")} onClick={() => setModalFechar(true)}>✅ Fechar Conta</button>
                   </div>
@@ -1081,7 +1121,13 @@ function Estoque() {
     setProdutos(data || []);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const channel = supabase.channel("estoque-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, load)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [load]);
 
   const alertas = produtos.filter(p => p.estoque_atual <= p.estoque_minimo);
   const esgotados = produtos.filter(p => p.estoque_atual === 0);
@@ -1295,7 +1341,13 @@ function Financeiro() {
     setRegistros(data || []);
   }, [filtroMes]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const channel = supabase.channel("financeiro-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "financeiro" }, load)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [load]);
 
   const entradas = registros.filter(r => r.tipo === "entrada").reduce((a, r) => a + Number(r.valor), 0);
   const saidas = registros.filter(r => r.tipo === "saida").reduce((a, r) => a + Number(r.valor), 0);
@@ -1409,10 +1461,18 @@ function Historico() {
   const [selected, setSelected] = useState(null);
   const [itens, setItens] = useState([]);
 
-  useEffect(() => {
-    supabase.from("vendas").select("*").eq("status", "concluida").order("created_at", { ascending: false }).limit(50)
-      .then(({ data }) => setVendas(data || []));
+  const loadVendas = useCallback(async () => {
+    const { data } = await supabase.from("vendas").select("*").eq("status", "concluida").order("created_at", { ascending: false }).limit(50);
+    setVendas(data || []);
   }, []);
+
+  useEffect(() => {
+    loadVendas();
+    const channel = supabase.channel("historico-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "vendas" }, loadVendas)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [loadVendas]);
 
   const verDetalhes = async (v) => {
     setSelected(v);
