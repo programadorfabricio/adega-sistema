@@ -500,6 +500,35 @@ function Dashboard({ setPage }) {
           </tbody>
         </table>
       </div>
+
+      {/* Acesso Rápido */}
+      <div style={{ ...base.card, marginTop: 16 }}>
+        <div style={base.sectionTitle}>⚡ Acesso Rápido</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {[
+            { label: "Comandas", icon: "🍺", page: "comandas", cor: C.accent },
+            { label: "Venda Rápida", icon: "⚡", page: "venda", cor: C.blue },
+            { label: "Estoque", icon: "📦", page: "estoque", cor: "#f97316" },
+            { label: "Financeiro", icon: "💰", page: "financeiro", cor: C.green },
+            { label: "Relatórios", icon: "📈", page: "relatorios", cor: "#a855f7" },
+            { label: "Configurações", icon: "⚙️", page: "configuracoes", cor: C.muted },
+          ].map(item => (
+            <button key={item.page} onClick={() => setPage(item.page)} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: C.card2, border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: "10px 16px",
+              color: C.text, fontSize: 13, fontWeight: 600,
+              cursor: "pointer", transition: "border-color 0.2s, background 0.2s",
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = item.cor; e.currentTarget.style.background = `${item.cor}15`; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card2; }}
+            >
+              <span style={{ fontSize: 16 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
