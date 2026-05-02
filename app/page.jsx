@@ -463,7 +463,7 @@ function Dashboard({ setPage }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 20 }}>
+      <div className="grid-5col" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 20 }}>
         {cards.map((c, i) => (
           <div key={i} onClick={c.action} style={{
             ...base.card,
@@ -758,7 +758,7 @@ function Comandas() {
         <button style={base.btn()} onClick={() => setModalNova(true)}>+ Nova Comanda</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
+      <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
         {/* Lista de comandas */}
         <div>
           <div style={base.sectionTitle}>Abertas ({comandas.length})</div>
@@ -969,7 +969,7 @@ function VendaRapida() {
     <div>
       <div style={base.pageTitle}>⚡ Venda Rápida</div>
       {sucesso && <div style={base.alert(C.green)}>✅ Venda registrada com sucesso!</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+      <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
         <div>
           <div style={{ ...base.card, marginBottom: 12 }}>
             <input style={base.input} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
@@ -1241,7 +1241,7 @@ function Financeiro() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
+      <div className="grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
         {[
           { label: "Total Entradas", val: fmt(entradas), color: C.green, icon: "📈" },
           { label: "Total Saídas", val: fmt(saidas), color: C.red, icon: "📉" },
@@ -1592,7 +1592,7 @@ function Relatorios() {
       {!loading && (
         <>
           {/* Resumo geral */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+          <div className="grid-4col" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
             {[
               { label: "Total Faturado", val: fmt(totalGeral), color: C.accent, icon: "💰" },
               { label: "Nº de Vendas", val: vendas.length, color: C.blue, icon: "🧾" },
@@ -1608,7 +1608,7 @@ function Relatorios() {
           </div>
 
           {/* Por forma de pagamento */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div style={base.card}>
               <div style={base.sectionTitle}>💳 Por Forma de Pagamento</div>
               {porPagamento.length === 0 && <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: 24 }}>Sem dados no período</div>}
@@ -1717,6 +1717,17 @@ export default function App() {
   return (
     <div style={{ display: "flex", background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Outfit', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+      <style>{`
+        @media (max-width: 768px) {
+          .grid-2col, .grid-3col, .grid-4col, .grid-5col { grid-template-columns: 1fr !important; }
+          .grid-auto { grid-template-columns: 1fr 1fr !important; }
+          .page-title { font-size: 18px !important; }
+          .hide-mobile { display: none !important; }
+          table { display: block !important; overflow-x: auto !important; white-space: nowrap !important; }
+          .flex-wrap-mobile { flex-wrap: wrap !important; }
+          .modal-box { max-width: 95vw !important; margin: 10px !important; }
+        }
+      `}</style>
 
       <Sidebar page={page} setPage={setPage} open={sidebarOpen} setOpen={setSidebarOpen} usuario={usuario} onLogout={handleLogout} />
 
