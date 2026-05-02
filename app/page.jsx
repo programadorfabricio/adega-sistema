@@ -762,10 +762,7 @@ function Comandas() {
 
     // Verifica estoque antes de adicionar
     const { data: prodAtual } = await supabase.from("produtos").select("estoque_atual").eq("id", produto.id).single();
-    if (!prodAtual || prodAtual.estoque_atual <= 0) {
-      alert(`${produto.nome} está esgotado!`);
-      return;
-    }
+    if (!prodAtual || prodAtual.estoque_atual <= 0) return; // já bloqueado visualmente
 
     const existente = itens.find(i => i.produto_id === produto.id);
     if (existente) {
@@ -777,7 +774,7 @@ function Comandas() {
     // Baixa 1 no estoque
     await supabase.from("produtos").update({ estoque_atual: prodAtual.estoque_atual - 1 }).eq("id", produto.id);
 
-    // Recarrega tudo
+    // Atualiza tudo sem fechar o modal
     const [{ data: itensAtualizados }, { data: produtosAtualizados }] = await Promise.all([
       supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id),
       supabase.from("produtos").select("*").eq("ativo", true).order("categoria"),
@@ -787,7 +784,7 @@ function Comandas() {
     setProdutos(produtosAtualizados || []);
     const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);
     await supabase.from("comandas").update({ total }).eq("id", selected.id);
-    loadComandas();
+    // Não fecha o modal nem recarrega tudo para não travar a tela
   };
 
   const removerItem = async (item) => {
@@ -1023,20 +1020,32 @@ function Comandas() {
                 <div key={cat} style={{ marginBottom: 14 }}>
                   <div style={base.sectionTitle}>{cat === "espeto" ? "🍢 Espetos" : cat === "bebida" ? "🍺 Bebidas" : "📦 Outros"}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    {itenscat.map(p => (
-                      <button key={p.id} onClick={() => adicionarItem(p)} style={{
-                        background: C.card2,
-                        border: `1px solid ${C.border}`,
-                        borderRadius: 10,
-                        padding: "12px 14px",
-                        cursor: "pointer",
-                        textAlign: "left",
-                      }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 2 }}>{p.nome}</div>
-                        <div style={{ fontSize: 13, color: C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
-                        <div style={{ fontSize: 11, color: p.estoque_atual <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>estoque: {p.estoque_atual}</div>
-                      </button>
-                    ))}
+                    {itenscat.map(p => {
+                      const esgotado = p.estoque_atual <= 0;
+                      return (
+                        <button key={p.id} onClick={() => !esgotado && adicionarItem(p)} style={{
+                          background: esgotado ? "#111100" : C.card2,
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 10,
+                          padding: "12px 14px",
+                          cursor: esgotado ? "not-allowed" : "pointer",
+                          textAlign: "left",
+                          opacity: esgotado ? 0.5 : 1,
+                          position: "relative",
+                        }}>
+                          {esgotado && (
+                            <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>
+                              ESGOTADO
+                            </div>
+                          )}
+                          <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
+                          <div style={{ fontSize: 13, color: esgotado ? C.muted : C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
+                          <div style={{ fontSize: 11, color: p.estoque_atual <= 0 ? "#a855f7" : p.estoque_atual <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>
+                            estoque: {p.estoque_atual}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1070,21 +1079,39 @@ function VendaRapida() {
   const [sucesso, setSucesso] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    supabase.from("produtos").select("*").eq("ativo", true).order("categoria").then(({ data }) => setProdutos(data || []));
+  const loadProdutos = useCallback(async () => {
+    const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
+    setProdutos(data || []);
   }, []);
+
+  useEffect(() => {
+    loadProdutos();
+    const channel = supabase.channel("venda-rapida-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, loadProdutos)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [loadProdutos]);
 
   const filtrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
   const total = carrinho.reduce((a, i) => a + i.subtotal, 0);
 
-  const add = (p) => setCarrinho(c => {
-    const ex = c.find(i => i.produto_id === p.id);
-    if (ex) return c.map(i => i.produto_id === p.id ? { ...i, quantidade: i.quantidade + 1, subtotal: (i.quantidade + 1) * i.preco_unitario } : i);
-    return [...c, { produto_id: p.id, nome_produto: p.nome, quantidade: 1, preco_unitario: p.preco, subtotal: p.preco }];
-  });
+  const add = (p) => {
+    if (p.estoque_atual <= 0) return;
+    // Verifica se a quantidade no carrinho já atingiu o estoque
+    const noCarrinho = carrinho.find(i => i.produto_id === p.id);
+    const qtdNoCarrinho = noCarrinho ? noCarrinho.quantidade : 0;
+    if (qtdNoCarrinho >= p.estoque_atual) return;
+    setCarrinho(c => {
+      const ex = c.find(i => i.produto_id === p.id);
+      if (ex) return c.map(i => i.produto_id === p.id ? { ...i, quantidade: i.quantidade + 1, subtotal: (i.quantidade + 1) * i.preco_unitario } : i);
+      return [...c, { produto_id: p.id, nome_produto: p.nome, quantidade: 1, preco_unitario: p.preco, subtotal: p.preco }];
+    });
+  };
 
   const changeQtd = (id, qtd) => {
     if (qtd < 1) return setCarrinho(c => c.filter(i => i.produto_id !== id));
+    const prod = produtos.find(p => p.id === id);
+    if (prod && qtd > prod.estoque_atual) return; // não deixa passar do estoque
     setCarrinho(c => c.map(i => i.produto_id === id ? { ...i, quantidade: qtd, subtotal: qtd * i.preco_unitario } : i));
   };
 
@@ -1095,6 +1122,11 @@ function VendaRapida() {
     if (venda) {
       await supabase.from("venda_itens").insert(carrinho.map(i => ({ ...i, venda_id: venda.id })));
       await supabase.from("financeiro").insert({ tipo: "entrada", descricao: `Venda Rápida`, valor: total, categoria: "venda" });
+      // Baixa estoque de cada item vendido
+      for (const item of carrinho) {
+        const { data: prod } = await supabase.from("produtos").select("estoque_atual").eq("id", item.produto_id).single();
+        if (prod) await supabase.from("produtos").update({ estoque_atual: Math.max(0, prod.estoque_atual - item.quantidade) }).eq("id", item.produto_id);
+      }
     }
     setCarrinho([]); setSucesso(true); setLoading(false);
     setTimeout(() => setSucesso(false), 3000);
@@ -1117,13 +1149,29 @@ function VendaRapida() {
                 <div key={cat} style={{ marginBottom: 16 }}>
                   <div style={base.sectionTitle}>{cat === "espeto" ? "🍢 Espetos" : cat === "bebida" ? "🍺 Bebidas" : "📦 Outros"}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
-                    {itens.map(p => (
-                      <button key={p.id} onClick={() => add(p)} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: "pointer", textAlign: "left" }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 2 }}>{p.nome}</div>
-                        <div style={{ fontSize: 13, color: C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
-                        <div style={{ fontSize: 11, color: p.estoque_atual <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>estoque: {p.estoque_atual}</div>
-                      </button>
-                    ))}
+                    {itens.map(p => {
+                      const noCarrinho = carrinho.find(i => i.produto_id === p.id);
+                      const esgotado = p.estoque_atual <= 0 || (noCarrinho && noCarrinho.quantidade >= p.estoque_atual);
+                      return (
+                        <button key={p.id} onClick={() => add(p)} disabled={esgotado} style={{
+                          background: esgotado ? "#111100" : C.card2,
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 10, padding: "12px 14px",
+                          cursor: esgotado ? "not-allowed" : "pointer",
+                          textAlign: "left", opacity: esgotado ? 0.5 : 1,
+                          position: "relative",
+                        }}>
+                          {esgotado && (
+                            <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>
+                              ESGOTADO
+                            </div>
+                          )}
+                          <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
+                          <div style={{ fontSize: 13, color: esgotado ? C.muted : C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
+                          <div style={{ fontSize: 11, color: p.estoque_atual <= 0 ? "#a855f7" : p.estoque_atual <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>estoque: {p.estoque_atual}</div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
