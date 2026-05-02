@@ -746,8 +746,19 @@ function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loa
           </div>
         )}
 
+        {/* Bloqueio quando valor não fecha */}
+        {modo === "dividir" && Math.abs(diferenca) >= 0.01 && (
+          <div style={{ ...base.alert(C.red), marginBottom: 12 }}>
+            ⚠️ O valor dividido não fecha o total. {diferenca > 0 ? `Faltam ${fmt(diferenca)}` : `Excesso de ${fmt(Math.abs(diferenca))}`}
+          </div>
+        )}
+
         <div style={base.row}>
-          <button style={{ ...base.btn(C.green, "#fff"), flex: 1, padding: "13px", fontSize: 15 }} onClick={onConfirmar} disabled={loading}>
+          <button
+            style={{ ...base.btn(modo === "dividir" && Math.abs(diferenca) >= 0.01 ? C.muted : C.green, "#fff"), flex: 1, padding: "13px", fontSize: 15, opacity: modo === "dividir" && Math.abs(diferenca) >= 0.01 ? 0.5 : 1 }}
+            onClick={onConfirmar}
+            disabled={loading || (modo === "dividir" && Math.abs(diferenca) >= 0.01)}
+          >
             {loading ? "Processando..." : "✅ Confirmar Pagamento"}
           </button>
           <button style={base.btnOutline} onClick={onCancelar}>Cancelar</button>
