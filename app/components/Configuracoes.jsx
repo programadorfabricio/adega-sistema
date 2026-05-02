@@ -16,7 +16,7 @@ export default function Configuracoes() {
     setUsuarios(data || []);
   }, []);
 
-  useEffect(() => { loadUsuarios(); }, [loadUsuarios]);
+  useEffect(() => { loadUsuarios(); loadConfig(); }, [loadUsuarios, loadConfig]);
 
   const salvarUsuario = async () => {
     if (!form.nome) return;
@@ -36,8 +36,27 @@ export default function Configuracoes() {
     setEditUsuario(null); loadUsuarios();
   };
 
-  const salvarConfig = () => {
-    localStorage.setItem("adega_config", JSON.stringify(config));
+  const [configId, setConfigId] = useState(null);
+
+  const loadConfig = useCallback(async () => {
+    try {
+      const { data } = await supabase.from("configuracoes").select("*").limit(1).single();
+      if (data) {
+        setConfig({ nome_estabelecimento: data.nome_estabelecimento || "Adega", telefone: data.telefone || "", endereco: data.endereco || "" });
+        setConfigId(data.id);
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => { loadConfig(); }, [loadConfig]);
+
+  const salvarConfig = async () => {
+    if (configId) {
+      await supabase.from("configuracoes").update({ ...config, updated_at: new Date().toISOString() }).eq("id", configId);
+    } else {
+      const { data } = await supabase.from("configuracoes").insert(config).select().single();
+      if (data) setConfigId(data.id);
+    }
     setSavedConfig(true);
     setTimeout(() => setSavedConfig(false), 2000);
   };
