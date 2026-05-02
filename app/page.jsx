@@ -433,14 +433,15 @@ function Dashboard({ setPage }) {
         supabase.from("vendas").select("*").eq("status", "concluida").order("created_at", { ascending: false }).limit(5),
       ]);
 
-      const estoqueBaixo = (produtos || []).filter(p => p.estoque_atual <= p.estoque_minimo);
+      const esgotados = (produtos || []).filter(p => p.estoque_atual === 0);
+      const estoqueBaixo = (produtos || []).filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
       const totalHoje = (vendas || []).reduce((a, v) => a + Number(v.total), 0);
       const entradas = (fin || []).filter(f => f.tipo === "entrada").reduce((a, f) => a + Number(f.valor), 0);
       const saidas = (fin || []).filter(f => f.tipo === "saida").reduce((a, f) => a + Number(f.valor), 0);
 
-      setStats({ vendasHoje: vendas?.length || 0, totalHoje, estoqueBaixo: estoqueBaixo.length, saldoMes: entradas - saidas, comandasAbertas: comandas?.length || 0 });
+      setStats({ vendasHoje: vendas?.length || 0, totalHoje, estoqueBaixo: estoqueBaixo.length, esgotados: esgotados.length, saldoMes: entradas - saidas, comandasAbertas: comandas?.length || 0 });
       setRecentes(ultimasVendas || []);
-      setAlertas(estoqueBaixo);
+      setAlertas([...esgotados, ...estoqueBaixo]);
     }
     load();
 
@@ -458,17 +459,22 @@ function Dashboard({ setPage }) {
     { label: "Comandas Abertas", val: stats.comandasAbertas, color: C.accent, icon: "🍺", action: () => setPage("comandas") },
     { label: "Vendas Hoje", val: stats.vendasHoje, color: C.blue, icon: "⚡" },
     { label: "Faturamento Hoje", val: fmt(stats.totalHoje), color: C.green, icon: "💵" },
+    { label: "Esgotados", val: stats.esgotados || 0, color: stats.esgotados > 0 ? "#a855f7" : C.green, icon: "🚫", action: () => setPage("estoque") },
     { label: "Estoque Baixo", val: stats.estoqueBaixo, color: stats.estoqueBaixo > 0 ? C.red : C.green, icon: "📦", action: () => setPage("estoque") },
-    { label: "Saldo do Mês", val: fmt(stats.saldoMes), color: stats.saldoMes >= 0 ? C.green : C.red, icon: "💰" },
   ];
 
   return (
     <div>
       <div style={base.pageTitle}>Dashboard</div>
 
-      {alertas.length > 0 && (
+      {alertas.filter(p => p.estoque_atual === 0).length > 0 && (
+        <div style={base.alert("#a855f7")}>
+          🚫 <strong>{alertas.filter(p => p.estoque_atual === 0).length} produto(s) esgotado(s):</strong> {alertas.filter(p => p.estoque_atual === 0).map(p => p.nome).join(", ")}
+        </div>
+      )}
+      {alertas.filter(p => p.estoque_atual > 0).length > 0 && (
         <div style={base.alert(C.red)}>
-          ⚠️ <strong>{alertas.length} produto(s) com estoque baixo:</strong> {alertas.map(p => p.nome).join(", ")}
+          ⚠️ <strong>{alertas.filter(p => p.estoque_atual > 0).length} produto(s) com estoque baixo:</strong> {alertas.filter(p => p.estoque_atual > 0).map(p => p.nome).join(", ")}
         </div>
       )}
 
