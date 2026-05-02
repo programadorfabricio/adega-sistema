@@ -1289,7 +1289,8 @@ function Financeiro() {
         <div style={base.pageTitle}>Financeiro</div>
         <div style={base.row}>
           <MonthPicker value={filtroMes} onChange={setFiltroMes} />
-          <button style={base.btn()} onClick={() => setShowForm(!showForm)}>+ Lançamento</button>
+          <button style={base.btn(C.green, "#fff")} onClick={() => { setForm({ ...form, tipo: "entrada" }); setShowForm(true); }}>+ Entrada</button>
+          <button style={base.btn(C.red, "#fff")} onClick={() => { setForm({ ...form, tipo: "saida" }); setShowForm(true); }}>− Saída</button>
         </div>
       </div>
 
