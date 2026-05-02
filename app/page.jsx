@@ -765,7 +765,11 @@ function Comandas() {
     } else {
       await supabase.from("comanda_itens").insert({ comanda_id: selected.id, produto_id: produto.id, quantidade: 1, preco_unitario: produto.preco, subtotal: produto.preco });
     }
-    // Recarrega os itens atualizados e recalcula o total
+    // Baixa 1 no estoque
+    const { data: prod } = await supabase.from("produtos").select("estoque_atual").eq("id", produto.id).single();
+    if (prod) await supabase.from("produtos").update({ estoque_atual: Math.max(0, prod.estoque_atual - 1) }).eq("id", produto.id);
+
+    // Recarrega itens e recalcula total
     const { data: itensAtualizados } = await supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id);
     setItens(itensAtualizados || []);
     const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);
@@ -775,10 +779,12 @@ function Comandas() {
 
   const removerItem = async (item) => {
     await supabase.from("comanda_itens").delete().eq("id", item.id);
-    await supabase.from("produtos").update({ estoque_atual: supabase.rpc }).eq("id", item.produto_id);
-    await loadItens(selected.id);
-    const novosItens = itens.filter(i => i.id !== item.id);
-    const total = novosItens.reduce((a, i) => a + Number(i.subtotal), 0);
+    // Devolve ao estoque
+    const { data: prod } = await supabase.from("produtos").select("estoque_atual").eq("id", item.produto_id).single();
+    if (prod) await supabase.from("produtos").update({ estoque_atual: prod.estoque_atual + item.quantidade }).eq("id", item.produto_id);
+    const { data: itensAtualizados } = await supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id);
+    setItens(itensAtualizados || []);
+    const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);
     await supabase.from("comandas").update({ total }).eq("id", selected.id);
     loadComandas();
   };
@@ -889,7 +895,42 @@ function Comandas() {
                   </div>
                 </div>
 
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                {/* Tabela de itens - versão cards no mobile */}
+                <style>{`
+                  @media (max-width: 768px) {
+                    .comanda-table { display: none !important; }
+                    .comanda-cards { display: flex !important; }
+                    .estoque-table thead th:nth-child(1),
+                    .estoque-table tbody td:nth-child(1) { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                    .estoque-table thead th:nth-child(5),
+                    .estoque-table tbody td:nth-child(5),
+                    .estoque-table thead th:nth-child(4),
+                    .estoque-table tbody td:nth-child(4) { display: none !important; }
+                  }
+                  @media (min-width: 769px) {
+                    .comanda-cards { display: none !important; }
+                  }
+                `}</style>
+
+                {/* Cards para mobile */}
+                <div className="comanda-cards" style={{ flexDirection: "column", gap: 10, display: "none" }}>
+                  {itens.map(i => (
+                    <div key={i.id} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 2 }}>{i.produtos?.nome || "—"}</div>
+                        <div style={{ fontSize: 12, color: C.muted }}>{i.quantidade}x · {fmt(i.preco_unitario)} cada</div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                        <span style={{ fontWeight: 800, color: C.accent, fontSize: 15 }}>{fmt(i.subtotal)}</span>
+                        <button style={base.btnSm(C.red, "#fff")} onClick={() => removerItem(i)}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                  {itens.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 20, fontSize: 13 }}>Nenhum item ainda</div>}
+                </div>
+
+                {/* Tabela para desktop */}
+                <table className="comanda-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
                       <th style={base.th}>Produto</th>
@@ -1271,7 +1312,51 @@ function Estoque() {
       )}
 
       <div style={base.card}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <style>{`
+          @media (max-width: 768px) {
+            .estoque-table { display: none !important; }
+            .estoque-cards { display: flex !important; }
+          }
+          @media (min-width: 769px) {
+            .estoque-cards { display: none !important; }
+          }
+        `}</style>
+
+        {/* Cards mobile */}
+        <div className="estoque-cards" style={{ flexDirection: "column", gap: 10, display: "none" }}>
+          {produtos.map(p => {
+            const esgotado = p.estoque_atual === 0;
+            const baixo = !esgotado && p.estoque_atual <= p.estoque_minimo;
+            const statusCor = esgotado ? "#6b21a8" : baixo ? C.red : C.green;
+            const statusLabel = esgotado ? "🚫 Esgotado" : baixo ? "⚠️ Baixo" : "✅ OK";
+            return (
+              <div key={p.id} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: C.text, fontSize: 14, marginBottom: 4 }}>{p.nome}</div>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={base.tag(C.accent)}>{p.categoria}</span>
+                      <span style={base.tag(statusCor)}>{statusLabel}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: C.accent, fontWeight: 800, fontSize: 16 }}>{fmt(p.preco)}</div>
+                    <div style={{ color: esgotado ? "#6b21a8" : C.text, fontWeight: 700, fontSize: 13 }}>{p.estoque_atual} {p.unidade}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button style={base.btnSm(C.blue, "#fff")} onClick={() => abrirEdicao(p)}>✏️ Editar</button>
+                  <button style={base.btnSm()} onClick={() => setEntradaModal(p)}>+ Entrada</button>
+                  <button style={base.btnSm(C.red, "#fff")} onClick={() => desativar(p.id)}>Remover</button>
+                </div>
+              </div>
+            );
+          })}
+          {produtos.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 32, fontSize: 13 }}>Nenhum produto cadastrado</div>}
+        </div>
+
+        {/* Tabela desktop */}
+        <table className="estoque-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={base.th}>Produto</th>
