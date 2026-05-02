@@ -1044,6 +1044,8 @@ function Estoque() {
   const [showForm, setShowForm] = useState(false);
   const [entradaModal, setEntradaModal] = useState(null);
   const [qtdEntrada, setQtdEntrada] = useState("");
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
@@ -1055,6 +1057,17 @@ function Estoque() {
   const alertas = produtos.filter(p => p.estoque_atual <= p.estoque_minimo);
   const esgotados = produtos.filter(p => p.estoque_atual === 0);
   const baixos = produtos.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
+
+  const abrirEdicao = (p) => {
+    setEditModal(p);
+    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade });
+  };
+
+  const salvarEdicao = async () => {
+    if (!editModal) return;
+    await supabase.from("produtos").update({ ...editForm, preco: Number(editForm.preco), estoque_minimo: Number(editForm.estoque_minimo) }).eq("id", editModal.id);
+    setEditModal(null); load();
+  };
 
   const salvar = async () => {
     if (!form.nome || !form.preco) return;
@@ -1132,6 +1145,44 @@ function Estoque() {
         </div>
       )}
 
+      {editModal && (
+        <div style={base.modal}>
+          <div style={base.modalBox}>
+            <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 20 }}>✏️ Editar Produto</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={base.label}>Nome</label>
+                <input style={base.input} value={editForm.nome} onChange={e => setEditForm({ ...editForm, nome: e.target.value })} />
+              </div>
+              <div>
+                <label style={base.label}>Preço (R$)</label>
+                <input style={base.input} type="number" value={editForm.preco} onChange={e => setEditForm({ ...editForm, preco: e.target.value })} />
+              </div>
+              <div>
+                <label style={base.label}>Estoque Mínimo</label>
+                <input style={base.input} type="number" value={editForm.estoque_minimo} onChange={e => setEditForm({ ...editForm, estoque_minimo: e.target.value })} />
+              </div>
+              <div>
+                <label style={base.label}>Categoria</label>
+                <select style={base.select} value={editForm.categoria} onChange={e => setEditForm({ ...editForm, categoria: e.target.value })}>
+                  <option value="bebida">🍺 Bebida</option>
+                  <option value="espeto">🍢 Espeto</option>
+                  <option value="outro">📦 Outro</option>
+                </select>
+              </div>
+              <div>
+                <label style={base.label}>Unidade</label>
+                <input style={base.input} value={editForm.unidade} onChange={e => setEditForm({ ...editForm, unidade: e.target.value })} />
+              </div>
+            </div>
+            <div style={base.row}>
+              <button style={base.btn(C.green, "#fff")} onClick={salvarEdicao}>Salvar</button>
+              <button style={base.btnOutline} onClick={() => setEditModal(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={base.card}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -1161,6 +1212,7 @@ function Estoque() {
                   <td style={base.td}><span style={base.tag(statusCor)}>{statusLabel}</span></td>
                   <td style={base.td}>
                     <div style={base.row}>
+                      <button style={base.btnSm(C.blue, "#fff")} onClick={() => abrirEdicao(p)}>✏️ Editar</button>
                       <button style={base.btnSm()} onClick={() => setEntradaModal(p)}>+ Entrada</button>
                       <button style={base.btnSm(C.red, "#fff")} onClick={() => desativar(p.id)}>Remover</button>
                     </div>
@@ -1411,6 +1463,8 @@ function Configuracoes() {
   const [showForm, setShowForm] = useState(false);
   const [config, setConfig] = useState({ nome_estabelecimento: "Adega", telefone: "", endereco: "" });
   const [savedConfig, setSavedConfig] = useState(false);
+  const [editUsuario, setEditUsuario] = useState(null);
+  const [editUserForm, setEditUserForm] = useState({});
 
   const loadUsuarios = useCallback(async () => {
     const { data } = await supabase.from("usuarios").select("*").order("created_at");
@@ -1429,6 +1483,17 @@ function Configuracoes() {
   const removerUsuario = async (id) => {
     await supabase.from("usuarios").delete().eq("id", id);
     loadUsuarios();
+  };
+
+  const abrirEdicaoUsuario = (u) => {
+    setEditUsuario(u);
+    setEditUserForm({ nome: u.nome, cargo: u.cargo, pin: u.pin || "" });
+  };
+
+  const salvarEdicaoUsuario = async () => {
+    if (!editUsuario) return;
+    await supabase.from("usuarios").update(editUserForm).eq("id", editUsuario.id);
+    setEditUsuario(null); loadUsuarios();
   };
 
   const salvarConfig = () => {
@@ -1517,12 +1582,47 @@ function Configuracoes() {
                 <td style={base.td}><span style={base.tag(cargoCor[u.cargo] || C.muted)}>{u.cargo}</span></td>
                 <td style={base.td}>{u.pin ? "••••" : "—"}</td>
                 <td style={base.td}>{new Date(u.created_at).toLocaleDateString("pt-BR")}</td>
-                <td style={base.td}><button style={base.btnSm(C.red, "#fff")} onClick={() => removerUsuario(u.id)}>Remover</button></td>
+                <td style={base.td}>
+                  <div style={base.row}>
+                    <button style={base.btnSm(C.blue, "#fff")} onClick={() => abrirEdicaoUsuario(u)}>✏️ Editar</button>
+                    <button style={base.btnSm(C.red, "#fff")} onClick={() => removerUsuario(u.id)}>Remover</button>
+                  </div>
+                </td>
               </tr>
             ))}
             {usuarios.length === 0 && <tr><td colSpan={5} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum usuário cadastrado</td></tr>}
           </tbody>
         </table>
+
+        {editUsuario && (
+          <div style={base.modal}>
+            <div style={base.modalBox}>
+              <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 20 }}>✏️ Editar Usuário</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={base.label}>Nome</label>
+                  <input style={base.input} value={editUserForm.nome} onChange={e => setEditUserForm({ ...editUserForm, nome: e.target.value })} />
+                </div>
+                <div>
+                  <label style={base.label}>Cargo</label>
+                  <select style={base.select} value={editUserForm.cargo} onChange={e => setEditUserForm({ ...editUserForm, cargo: e.target.value })}>
+                    <option value="admin">👑 Admin</option>
+                    <option value="gerente">🔑 Gerente</option>
+                    <option value="atendente">👤 Atendente</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={base.label}>Novo PIN</label>
+                  <input style={base.input} value={editUserForm.pin} onChange={e => setEditUserForm({ ...editUserForm, pin: e.target.value })} placeholder="Digite o novo PIN" maxLength={6} />
+                </div>
+              </div>
+              <div style={base.row}>
+                <button style={base.btn(C.green, "#fff")} onClick={salvarEdicaoUsuario}>Salvar</button>
+                <button style={base.btnOutline} onClick={() => setEditUsuario(null)}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
