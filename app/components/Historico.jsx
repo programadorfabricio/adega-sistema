@@ -6,6 +6,12 @@ export default function Historico() {
   const [vendas, setVendas] = useState([]);
   const [selected, setSelected] = useState(null);
   const [itens, setItens] = useState([]);
+  const [busca, setBusca] = useState("");
+  const [filtroPagamento, setFiltroPagamento] = useState("todos");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
 
   const loadVendas = useCallback(async () => {
     const { data } = await supabase.from("vendas").select("*").eq("status", "concluida").order("created_at", { ascending: false }).limit(50);
@@ -28,6 +34,12 @@ export default function Historico() {
 
   const totalDia = vendas.filter(v => v.created_at?.startsWith(today())).reduce((a, v) => a + Number(v.total), 0);
 
+  const vendasFiltradas = vendas
+    .filter(v => filtroPagamento === "todos" || v.forma_pagamento === filtroPagamento)
+    .filter(v => !busca || fmt(v.total).includes(busca) || v.forma_pagamento?.includes(busca.toLowerCase()))
+    .filter(v => !dataInicio || v.created_at?.slice(0, 10) >= dataInicio)
+    .filter(v => !dataFim || v.created_at?.slice(0, 10) <= dataFim);
+
   return (
     <div>
       <div style={base.pageTitle}>Histórico de Vendas</div>
@@ -38,6 +50,34 @@ export default function Historico() {
           <div style={{ fontSize: 28, fontWeight: 900, color: C.accent }}>{fmt(totalDia)}</div>
         </div>
         <div style={{ fontSize: 13, color: C.muted }}>{vendas.filter(v => v.created_at?.startsWith(today())).length} vendas hoje</div>
+      </div>
+
+      {/* Barra de filtros */}
+      <div style={{ ...base.card, marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input style={{ ...base.input, flex: 1, minWidth: 180 }} placeholder="🔍 Buscar por valor..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input type="date" style={{ ...base.input, width: "auto" }} value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+          <span style={{ color: C.muted, fontSize: 13 }}>até</span>
+          <input type="date" style={{ ...base.input, width: "auto" }} value={dataFim} onChange={e => setDataFim(e.target.value)} />
+          {(dataInicio || dataFim) && (
+            <button onClick={() => { setDataInicio(""); setDataFim(""); }} style={base.btnSm(C.red, "#fff")}>✕</button>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[
+            { val: "todos", label: "Todos" },
+            { val: "pix", label: "PIX" },
+            { val: "dinheiro", label: "Dinheiro" },
+            { val: "cartao_debito", label: "Débito" },
+            { val: "cartao_credito", label: "Crédito" },
+          ].map(f => (
+            <button key={f.val} onClick={() => setFiltroPagamento(f.val)} style={{
+              ...base.btnSm(filtroPagamento === f.val ? C.accent : C.card2, filtroPagamento === f.val ? "#000" : C.muted),
+              border: `1px solid ${filtroPagamento === f.val ? C.accent : C.border}`,
+              padding: "8px 14px", fontSize: 13,
+            }}>{f.label}</button>
+          ))}
+        </div>
       </div>
 
       <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: selected ? "1fr 360px" : "1fr", gap: 16 }}>
@@ -52,7 +92,7 @@ export default function Historico() {
               </tr>
             </thead>
             <tbody>
-              {vendas.map(v => (
+              {vendasFiltradas.map(v => (
                 <tr key={v.id} style={{ background: selected?.id === v.id ? C.accentBg : "transparent" }}>
                   <td style={base.td}>{dataHora(v.created_at)}</td>
                   <td style={base.td}><span style={base.tag(C.accent)}>{v.forma_pagamento || "—"}</span></td>
@@ -60,7 +100,7 @@ export default function Historico() {
                   <td style={base.td}><button style={base.btnSm()} onClick={() => verDetalhes(v)}>Ver</button></td>
                 </tr>
               ))}
-              {vendas.length === 0 && <tr><td colSpan={4} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhuma venda registrada</td></tr>}
+              {vendasFiltradas.length === 0 && <tr><td colSpan={4} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhuma venda encontrada</td></tr>}
             </tbody>
           </table>
         </div>

@@ -5,6 +5,8 @@ import MonthPicker from "./shared/MonthPicker";
 
 export default function Financeiro() {
   const [registros, setRegistros] = useState([]);
+  const [busca, setBusca] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("todos");
   const [form, setForm] = useState({ tipo: "saida", descricao: "", valor: "", categoria: "", data: today() });
   const [showForm, setShowForm] = useState(false);
   const [filtroMes, setFiltroMes] = useState(today().slice(0, 7));
@@ -24,6 +26,10 @@ export default function Financeiro() {
 
   const entradas = registros.filter(r => r.tipo === "entrada").reduce((a, r) => a + Number(r.valor), 0);
   const saidas = registros.filter(r => r.tipo === "saida").reduce((a, r) => a + Number(r.valor), 0);
+
+  const registrosFiltrados = registros
+    .filter(r => filtroTipo === "todos" || r.tipo === filtroTipo)
+    .filter(r => !busca || r.descricao?.toLowerCase().includes(busca.toLowerCase()) || r.categoria?.toLowerCase().includes(busca.toLowerCase()));
 
   const salvar = async () => {
     if (!form.descricao || !form.valor) return;
@@ -62,6 +68,19 @@ export default function Financeiro() {
         ))}
       </div>
 
+      {/* Barra de filtros */}
+      <div style={{ ...base.card, marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input style={{ ...base.input, flex: 1, minWidth: 180 }} placeholder="🔍 Buscar por descrição ou categoria..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <div style={{ display: "flex", gap: 8 }}>
+          {[{ val: "todos", label: "Todos" }, { val: "entrada", label: "📈 Entradas" }, { val: "saida", label: "📉 Saídas" }].map(f => (
+            <button key={f.val} onClick={() => setFiltroTipo(f.val)} style={{
+              ...base.btnSm(filtroTipo === f.val ? C.accent : C.card2, filtroTipo === f.val ? "#000" : C.muted),
+              border: `1px solid ${filtroTipo === f.val ? C.accent : C.border}`,
+              padding: "8px 14px", fontSize: 13,
+            }}>{f.label}</button>
+          ))}
+        </div>
+      </div>
       {showForm && (
         <div style={{ ...base.card, marginBottom: 16 }}>
           <div style={base.sectionTitle}>Novo Lançamento</div>
@@ -110,7 +129,7 @@ export default function Financeiro() {
             </tr>
           </thead>
           <tbody>
-            {registros.map(r => (
+            {registrosFiltrados.map(r => (
               <tr key={r.id}>
                 <td style={base.td}>{new Date(r.data + "T00:00:00").toLocaleDateString("pt-BR")}</td>
                 <td style={base.td}>{r.descricao}</td>
@@ -120,7 +139,7 @@ export default function Financeiro() {
                 <td style={base.td}><button style={base.btnSm(C.red, "#fff")} onClick={() => excluir(r.id)}>✕</button></td>
               </tr>
             ))}
-            {registros.length === 0 && <tr><td colSpan={6} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum lançamento no período</td></tr>}
+            {registrosFiltrados.length === 0 && <tr><td colSpan={6} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum lançamento encontrado</td></tr>}
           </tbody>
         </table>
       </div>
