@@ -135,9 +135,9 @@ export default function Estoque() {
 
   return (
     <div>
-      <div style={{ ...base.row, justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
         <div style={base.pageTitle}>Estoque</div>
-        <div style={base.row}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={base.btn(C.blue, "#fff")} onClick={() => setShowScanner(true)}>📷 Bipar Produto</button>
           <button style={base.btn()} onClick={() => setShowForm(!showForm)}>+ Novo Produto</button>
         </div>

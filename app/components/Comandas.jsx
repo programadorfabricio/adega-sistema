@@ -335,6 +335,13 @@ export default function Comandas() {
     }
   };
 
+  const excluirComanda = async (c) => {
+    if (c.total > 0 || (c.comanda_itens?.length || 0) > 0) return;
+    await supabase.from("comandas").delete().eq("id", c.id);
+    if (selected?.id === c.id) { setSelected(null); setItens([]); }
+    loadComandas();
+  };
+
   const abrirModalPedido = async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
     setProdutos(data || []);
@@ -372,8 +379,8 @@ export default function Comandas() {
           <div style={base.sectionTitle}>Abertas ({comandas.length})</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {comandas.map(c => (
-              <div key={c.id} onClick={() => selecionarComanda(c)} style={{ ...base.card, cursor: "pointer", borderColor: selected?.id === c.id ? C.accent : C.border, borderWidth: selected?.id === c.id ? 2 : 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div key={c.id} style={{ ...base.card, cursor: "pointer", borderColor: selected?.id === c.id ? C.accent : C.border, borderWidth: selected?.id === c.id ? 2 : 1 }}>
+                <div onClick={() => selecionarComanda(c)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div>
                     <div style={{ fontWeight: 700, color: C.text, marginBottom: 2 }}>👤 {c.nome_cliente}</div>
                     {c.mesa && <div style={{ fontSize: 12, color: C.muted }}>Mesa {c.mesa}</div>}
@@ -383,6 +390,13 @@ export default function Comandas() {
                     <div style={{ fontWeight: 800, color: C.accent, fontSize: 16 }}>{fmt(c.total)}</div>
                     <div style={{ fontSize: 11, color: C.muted }}>{c.comanda_itens?.length || 0} itens</div>
                   </div>
+                </div>
+                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                  {(c.total > 0 || (c.comanda_itens?.length || 0) > 0) ? (
+                    <div style={{ fontSize: 11, color: C.muted }}>⚠️ Remova os itens para excluir</div>
+                  ) : (
+                    <button style={{ ...base.btnSm(C.red, "#fff"), fontSize: 11 }} onClick={(e) => { e.stopPropagation(); excluirComanda(c); }}>🗑️ Excluir</button>
+                  )}
                 </div>
               </div>
             ))}

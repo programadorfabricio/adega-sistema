@@ -7,12 +7,14 @@ export default function Financeiro() {
   const [registros, setRegistros] = useState([]);
   const [busca, setBusca] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
   const [form, setForm] = useState({ tipo: "saida", descricao: "", valor: "", categoria: "", data: today() });
   const [showForm, setShowForm] = useState(false);
   const [filtroMes, setFiltroMes] = useState(today().slice(0, 7));
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from("financeiro").select("*").gte("data", filtroMes + "-01").order("data", { ascending: false });
+    const { data } = await supabase.from("financeiro").select("*").gte("data", filtroMes + "-01").order("created_at", { ascending: false });
     setRegistros(data || []);
   }, [filtroMes]);
 
@@ -29,7 +31,9 @@ export default function Financeiro() {
 
   const registrosFiltrados = registros
     .filter(r => filtroTipo === "todos" || r.tipo === filtroTipo)
-    .filter(r => !busca || r.descricao?.toLowerCase().includes(busca.toLowerCase()) || r.categoria?.toLowerCase().includes(busca.toLowerCase()));
+    .filter(r => !busca || r.descricao?.toLowerCase().includes(busca.toLowerCase()) || r.categoria?.toLowerCase().includes(busca.toLowerCase()))
+    .filter(r => !filtroDataInicio || r.data >= filtroDataInicio)
+    .filter(r => !filtroDataFim || r.data <= filtroDataFim);
 
   const salvar = async () => {
     if (!form.descricao || !form.valor) return;
@@ -45,9 +49,9 @@ export default function Financeiro() {
 
   return (
     <div>
-      <div style={{ ...base.row, justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
         <div style={base.pageTitle}>Financeiro</div>
-        <div style={base.row}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <MonthPicker value={filtroMes} onChange={setFiltroMes} />
           <button style={base.btn(C.green, "#fff")} onClick={() => { setForm({ ...form, tipo: "entrada" }); setShowForm(true); }}>+ Entrada</button>
           <button style={base.btn(C.red, "#fff")} onClick={() => { setForm({ ...form, tipo: "saida" }); setShowForm(true); }}>− Saída</button>
@@ -71,6 +75,14 @@ export default function Financeiro() {
       {/* Barra de filtros */}
       <div style={{ ...base.card, marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <input style={{ ...base.input, flex: 1, minWidth: 180 }} placeholder="🔍 Buscar por descrição ou categoria..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input type="date" style={{ ...base.input, width: "auto" }} value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} />
+          <span style={{ color: C.muted, fontSize: 13 }}>até</span>
+          <input type="date" style={{ ...base.input, width: "auto" }} value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} />
+          {(filtroDataInicio || filtroDataFim) && (
+            <button onClick={() => { setFiltroDataInicio(""); setFiltroDataFim(""); }} style={base.btnSm(C.red, "#fff")}>✕</button>
+          )}
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
           {[{ val: "todos", label: "Todos" }, { val: "entrada", label: "📈 Entradas" }, { val: "saida", label: "📉 Saídas" }].map(f => (
             <button key={f.val} onClick={() => setFiltroTipo(f.val)} style={{
@@ -117,7 +129,35 @@ export default function Financeiro() {
       )}
 
       <div style={base.card}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <style>{`
+          @media (max-width: 768px) { .fin-table { display: none !important; } .fin-cards { display: flex !important; } }
+          @media (min-width: 769px) { .fin-cards { display: none !important; } }
+        `}</style>
+
+        {/* Cards mobile */}
+        <div className="fin-cards" style={{ flexDirection: "column", gap: 10, display: "none" }}>
+          {registrosFiltrados.map(r => (
+            <div key={r.id} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 4 }}>{r.descricao}</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <span style={base.tag(r.tipo === "entrada" ? C.green : C.red)}>{r.tipo === "entrada" ? "📈 Entrada" : "📉 Saída"}</span>
+                    {r.categoria && <span style={base.tag(C.muted)}>{r.categoria}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{new Date(r.data + "T00:00:00").toLocaleDateString("pt-BR")}</div>
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: r.tipo === "entrada" ? C.green : C.red, marginLeft: 12 }}>
+                  {r.tipo === "saida" ? "−" : "+"} {fmt(r.valor)}
+                </div>
+              </div>
+            </div>
+          ))}
+          {registrosFiltrados.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 32, fontSize: 13 }}>Nenhum lançamento encontrado</div>}
+        </div>
+
+        {/* Tabela desktop */}
+        <table className="fin-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={base.th}>Data</th>
@@ -125,7 +165,6 @@ export default function Financeiro() {
               <th style={base.th}>Categoria</th>
               <th style={base.th}>Tipo</th>
               <th style={base.th}>Valor</th>
-              <th style={base.th}></th>
             </tr>
           </thead>
           <tbody>
@@ -136,7 +175,6 @@ export default function Financeiro() {
                 <td style={base.td}><span style={base.tag(C.muted)}>{r.categoria || "—"}</span></td>
                 <td style={base.td}><span style={base.tag(r.tipo === "entrada" ? C.green : C.red)}>{r.tipo === "entrada" ? "📈 Entrada" : "📉 Saída"}</span></td>
                 <td style={{ ...base.td, color: r.tipo === "entrada" ? C.green : C.red, fontWeight: 700 }}>{r.tipo === "saida" ? "− " : "+ "}{fmt(r.valor)}</td>
-                <td style={base.td}><button style={base.btnSm(C.red, "#fff")} onClick={() => excluir(r.id)}>✕</button></td>
               </tr>
             ))}
             {registrosFiltrados.length === 0 && <tr><td colSpan={6} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum lançamento encontrado</td></tr>}
