@@ -3,6 +3,40 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, hora } from "./shared/constants";
 import TrocoCalculator from "./shared/TrocoCalculator";
 
+// ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
+function BarcodeScanner({ onFound, onClose }) {
+  const [codigo, setCodigo] = useState("");
+  const [erro, setErro] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+
+  const buscar = async (cod) => {
+    if (!cod) return;
+    const { data } = await supabase.from("produtos").select("*").eq("codigo_barras", cod).eq("ativo", true).single();
+    if (data) { onFound(data); setCodigo(""); setErro(""); }
+    else { setErro(`Produto não encontrado: ${cod}`); setCodigo(""); }
+  };
+
+  return (
+    <div style={base.modal}>
+      <div style={{ ...base.modalBox, maxWidth: 420 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>📷 Bipar Item</div>
+          <button style={base.btnSm(C.card2, C.muted)} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Aponte o leitor ou digite o código:</div>
+        <div style={base.row}>
+          <input ref={inputRef} style={{ ...base.input, flex: 1 }} value={codigo} onChange={e => setCodigo(e.target.value)} onKeyDown={e => e.key === "Enter" && buscar(codigo)} placeholder="Código de barras..." />
+          <button style={base.btn()} onClick={() => buscar(codigo)}>Buscar</button>
+        </div>
+        {erro && <div style={{ ...base.alert(C.red), marginTop: 12 }}>{erro}</div>}
+        <div style={{ fontSize: 12, color: C.muted, textAlign: "center", marginTop: 12 }}>Leitor USB funciona automaticamente ao bipar</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MODAL FECHAR CONTA ──────────────────────────────────
 function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loading, onConfirmar, onCancelar }) {
   const [modo, setModo] = useState("total");
@@ -168,6 +202,7 @@ export default function Comandas() {
   const [modalNova, setModalNova] = useState(false);
   const [modalPedido, setModalPedido] = useState(false);
   const [modalFechar, setModalFechar] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [nomeCliente, setNomeCliente] = useState("");
   const [mesa, setMesa] = useState("");
   const [busca, setBusca] = useState("");
@@ -361,6 +396,7 @@ export default function Comandas() {
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button style={base.btn(C.blue, "#fff")} onClick={abrirModalPedido}>+ Adicionar Item</button>
+                  <button style={base.btn("#6366f1", "#fff")} onClick={() => setShowScanner(true)}>📷 Bipar</button>
                   <button style={base.btn(C.green, "#fff")} onClick={() => setModalFechar(true)}>✅ Fechar Conta</button>
                 </div>
               </div>
@@ -420,6 +456,13 @@ export default function Comandas() {
           )}
         </div>
       </div>
+
+      {showScanner && selected && (
+        <BarcodeScanner
+          onFound={(produto) => { adicionarItem(produto); }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
 
       {/* Modal Nova Comanda */}
       {modalNova && (

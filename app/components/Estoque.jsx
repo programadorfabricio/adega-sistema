@@ -1,16 +1,93 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt } from "./shared/constants";
+
+// ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
+function BarcodeScanner({ onFound, onClose }) {
+  const [codigoManual, setCodigoManual] = useState("");
+  const [resultado, setResultado] = useState(null);
+  const [erro, setErro] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.focus();
+  }, []);
+
+  const buscarPorCodigo = async (codigo) => {
+    if (!codigo) return;
+    const { data } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).single();
+    if (data) {
+      setResultado(data);
+      setErro("");
+    } else {
+      setResultado(null);
+      setErro(`Produto não encontrado para o código: ${codigo}`);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") buscarPorCodigo(codigoManual);
+  };
+
+  return (
+    <div style={base.modal}>
+      <div style={{ ...base.modalBox, maxWidth: 460 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>📷 Leitor de Código de Barras</div>
+          <button style={base.btnSm(C.card2, C.muted)} onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+            Aponte o leitor de código de barras ou digite o código abaixo
+          </div>
+          <div style={base.row}>
+            <input
+              ref={inputRef}
+              style={{ ...base.input, flex: 1 }}
+              value={codigoManual}
+              onChange={e => setCodigoManual(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Código de barras..."
+            />
+            <button style={base.btn()} onClick={() => buscarPorCodigo(codigoManual)}>Buscar</button>
+          </div>
+        </div>
+
+        {erro && <div style={base.alert(C.red)}>{erro}</div>}
+
+        {resultado && (
+          <div style={{ background: `${C.green}15`, border: `1px solid ${C.green}40`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: C.green, marginBottom: 8, fontWeight: 700 }}>✅ Produto encontrado!</div>
+            <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>{resultado.nome}</div>
+            <div style={{ fontSize: 13, color: C.muted }}>Estoque atual: <strong style={{ color: C.accent }}>{resultado.estoque_atual} {resultado.unidade}</strong></div>
+            <div style={{ fontSize: 13, color: C.muted }}>Preço: <strong style={{ color: C.accent }}>{fmt(resultado.preco)}</strong></div>
+            <div style={base.row}>
+              <button style={{ ...base.btn(C.green, "#fff"), marginTop: 12 }} onClick={() => { onFound(resultado); onClose(); }}>
+                + Dar Entrada no Estoque
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ fontSize: 12, color: C.muted, textAlign: "center" }}>
+          Leitor USB funciona automaticamente ao bipар o produto
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Estoque() {
   const [produtos, setProdutos] = useState([]);
-  const [form, setForm] = useState({ nome: "", categoria: "bebida", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un" });
+  const [form, setForm] = useState({ nome: "", categoria: "bebida", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "" });
   const [showForm, setShowForm] = useState(false);
   const [entradaModal, setEntradaModal] = useState(null);
   const [qtdEntrada, setQtdEntrada] = useState("");
   const [editModal, setEditModal] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [erroForm, setErroForm] = useState("");
+  const [showScanner, setShowScanner] = useState(false);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
@@ -60,8 +137,18 @@ export default function Estoque() {
     <div>
       <div style={{ ...base.row, justifyContent: "space-between", marginBottom: 20 }}>
         <div style={base.pageTitle}>Estoque</div>
-        <button style={base.btn()} onClick={() => setShowForm(!showForm)}>+ Novo Produto</button>
+        <div style={base.row}>
+          <button style={base.btn(C.blue, "#fff")} onClick={() => setShowScanner(true)}>📷 Bipar Produto</button>
+          <button style={base.btn()} onClick={() => setShowForm(!showForm)}>+ Novo Produto</button>
+        </div>
       </div>
+
+      {showScanner && (
+        <BarcodeScanner
+          onFound={(produto) => setEntradaModal(produto)}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
 
       {esgotados.length > 0 && <div style={base.alert("#a855f7")}>🚫 <strong>{esgotados.length} esgotado(s):</strong> {esgotados.map(p => p.nome).join(", ")}</div>}
       {baixos.length > 0 && <div style={base.alert(C.red)}>⚠️ <strong>{baixos.length} estoque baixo:</strong> {baixos.map(p => p.nome).join(", ")}</div>}
@@ -76,6 +163,7 @@ export default function Estoque() {
               { label: "Estoque Atual", key: "estoque_atual", type: "number", placeholder: "0" },
               { label: "Estoque Mínimo", key: "estoque_minimo", type: "number", placeholder: "5" },
               { label: "Unidade", key: "unidade", type: "text", placeholder: "un, kg, l..." },
+              { label: "Código de Barras", key: "codigo_barras", type: "text", placeholder: "Bipe ou digite..." },
             ].map(f => (
               <div key={f.key}>
                 <label style={base.label}>{f.label}</label>

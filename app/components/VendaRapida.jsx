@@ -1,7 +1,41 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt } from "./shared/constants";
 import TrocoCalculator from "./shared/TrocoCalculator";
+
+// ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
+function BarcodeScanner({ onFound, onClose }) {
+  const [codigo, setCodigo] = useState("");
+  const [erro, setErro] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+
+  const buscar = async (cod) => {
+    if (!cod) return;
+    const { data } = await supabase.from("produtos").select("*").eq("codigo_barras", cod).eq("ativo", true).single();
+    if (data) { onFound(data); onClose(); }
+    else { setErro(`Produto não encontrado: ${cod}`); setCodigo(""); }
+  };
+
+  return (
+    <div style={base.modal}>
+      <div style={{ ...base.modalBox, maxWidth: 420 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>📷 Bipar Produto</div>
+          <button style={base.btnSm(C.card2, C.muted)} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>Aponte o leitor ou digite o código:</div>
+        <div style={base.row}>
+          <input ref={inputRef} style={{ ...base.input, flex: 1 }} value={codigo} onChange={e => setCodigo(e.target.value)} onKeyDown={e => e.key === "Enter" && buscar(codigo)} placeholder="Código de barras..." />
+          <button style={base.btn()} onClick={() => buscar(codigo)}>Buscar</button>
+        </div>
+        {erro && <div style={{ ...base.alert(C.red), marginTop: 12 }}>{erro}</div>}
+        <div style={{ fontSize: 12, color: C.muted, textAlign: "center", marginTop: 12 }}>Leitor USB funciona automaticamente ao bipar</div>
+      </div>
+    </div>
+  );
+}
 
 export default function VendaRapida() {
   const [produtos, setProdutos] = useState([]);
@@ -29,6 +63,7 @@ export default function VendaRapida() {
   const total = carrinho.reduce((a, i) => a + i.subtotal, 0);
 
   const [ultimoAdicionado, setUltimoAdicionado] = useState(null);
+  const [showScanner, setShowScanner] = useState(false);
 
   const add = (p) => {
     if (p.estoque_atual <= 0) return;
@@ -69,6 +104,8 @@ export default function VendaRapida() {
 
   return (
     <div>
+      {showScanner && <BarcodeScanner onFound={(p) => add(p)} onClose={() => setShowScanner(false)} />}
+
       <div style={base.pageTitle}>⚡ Venda Rápida</div>
       {sucesso && <div style={{ ...base.alert(C.green), marginBottom: 16 }}>✅ Venda registrada!</div>}
 
@@ -76,7 +113,10 @@ export default function VendaRapida() {
         {/* Produtos */}
         <div>
           <div style={{ ...base.card, marginBottom: 12 }}>
-            <input style={base.input} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
+            <div style={base.row}>
+              <input style={{ ...base.input, flex: 1 }} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
+              <button style={base.btn(C.blue, "#fff")} onClick={() => setShowScanner(true)}>📷 Bipar</button>
+            </div>
           </div>
 
           {ultimoAdicionado && (
