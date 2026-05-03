@@ -11,12 +11,24 @@ export default function Configuracoes() {
   const [config, setConfig] = useState({ nome_estabelecimento: "Adega", telefone: "", endereco: "" });
   const [savedConfig, setSavedConfig] = useState(false);
 
+  const [configId, setConfigId] = useState(null);
+
   const loadUsuarios = useCallback(async () => {
     const { data } = await supabase.from("usuarios").select("*").order("created_at");
     setUsuarios(data || []);
   }, []);
 
-  useEffect(() => { loadUsuarios(); }, [loadUsuarios]);
+  const loadConfig = useCallback(async () => {
+    try {
+      const { data } = await supabase.from("configuracoes").select("*").limit(1).single();
+      if (data) {
+        setConfig({ nome_estabelecimento: data.nome_estabelecimento || "Adega", telefone: data.telefone || "", endereco: data.endereco || "" });
+        setConfigId(data.id);
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => { loadUsuarios(); loadConfig(); }, [loadUsuarios, loadConfig]);
 
   const salvarUsuario = async () => {
     if (!form.nome) return;
@@ -36,8 +48,13 @@ export default function Configuracoes() {
     setEditUsuario(null); loadUsuarios();
   };
 
-  const salvarConfig = () => {
-    localStorage.setItem("adega_config", JSON.stringify(config));
+  const salvarConfig = async () => {
+    if (configId) {
+      await supabase.from("configuracoes").update({ ...config, updated_at: new Date().toISOString() }).eq("id", configId);
+    } else {
+      const { data } = await supabase.from("configuracoes").insert(config).select().single();
+      if (data) setConfigId(data.id);
+    }
     setSavedConfig(true);
     setTimeout(() => setSavedConfig(false), 2000);
   };
@@ -105,7 +122,33 @@ export default function Configuracoes() {
           </div>
         )}
 
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <style>{`
+          @media (max-width: 768px) { .config-table { display: none !important; } .config-cards { display: flex !important; } }
+          @media (min-width: 769px) { .config-cards { display: none !important; } }
+        `}</style>
+
+        {/* Cards mobile */}
+        <div className="config-cards" style={{ flexDirection: "column", gap: 10, display: "none" }}>
+          {usuarios.map(u => (
+            <div key={u.id} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: C.text, fontSize: 14, marginBottom: 4 }}>{u.nome}</div>
+                  <span style={base.tag(cargoCor[u.cargo] || C.muted)}>{u.cargo}</span>
+                </div>
+                <div style={{ fontSize: 13, color: C.muted }}>{u.pin ? "••••" : "—"}</div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditUsuario(u); setEditUserForm({ nome: u.nome, cargo: u.cargo, pin: u.pin || "" }); }}>✏️ Editar</button>
+                <button style={base.btnSm(C.red, "#fff")} onClick={() => removerUsuario(u.id)}>Remover</button>
+              </div>
+            </div>
+          ))}
+          {usuarios.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 32, fontSize: 13 }}>Nenhum usuário cadastrado</div>}
+        </div>
+
+        {/* Tabela desktop */}
+        <table className="config-table" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               <th style={base.th}>Nome</th>

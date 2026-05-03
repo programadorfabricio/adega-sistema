@@ -53,14 +53,14 @@ export default function Historico() {
       </div>
 
       {/* Barra de filtros */}
-      <div style={{ ...base.card, marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <input style={{ ...base.input, flex: 1, minWidth: 180 }} placeholder="🔍 Buscar por valor..." value={busca} onChange={e => setBusca(e.target.value)} />
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input type="date" style={{ ...base.input, width: "auto" }} value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+      <div style={{ ...base.card, marginBottom: 16 }}>
+        <input style={{ ...base.input, marginBottom: 10 }} placeholder="🔍 Buscar por valor..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+          <input type="date" style={{ ...base.input, flex: 1 }} value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
           <span style={{ color: C.muted, fontSize: 13 }}>até</span>
-          <input type="date" style={{ ...base.input, width: "auto" }} value={dataFim} onChange={e => setDataFim(e.target.value)} />
+          <input type="date" style={{ ...base.input, flex: 1 }} value={dataFim} onChange={e => setDataFim(e.target.value)} />
           {(dataInicio || dataFim) && (
-            <button onClick={() => { setDataInicio(""); setDataFim(""); }} style={base.btnSm(C.red, "#fff")}>✕</button>
+            <button onClick={() => { setDataInicio(""); setDataFim(""); }} style={base.btnSm(C.red, "#fff")}>✕ Limpar</button>
           )}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

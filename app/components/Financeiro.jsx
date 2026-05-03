@@ -73,17 +73,9 @@ export default function Financeiro() {
       </div>
 
       {/* Barra de filtros */}
-      <div style={{ ...base.card, marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <input style={{ ...base.input, flex: 1, minWidth: 180 }} placeholder="🔍 Buscar por descrição ou categoria..." value={busca} onChange={e => setBusca(e.target.value)} />
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input type="date" style={{ ...base.input, width: "auto" }} value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} />
-          <span style={{ color: C.muted, fontSize: 13 }}>até</span>
-          <input type="date" style={{ ...base.input, width: "auto" }} value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} />
-          {(filtroDataInicio || filtroDataFim) && (
-            <button onClick={() => { setFiltroDataInicio(""); setFiltroDataFim(""); }} style={base.btnSm(C.red, "#fff")}>✕</button>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ ...base.card, marginBottom: 16 }}>
+        <input style={{ ...base.input, marginBottom: 10 }} placeholder="🔍 Buscar por descrição ou categoria..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {[{ val: "todos", label: "Todos" }, { val: "entrada", label: "📈 Entradas" }, { val: "saida", label: "📉 Saídas" }].map(f => (
             <button key={f.val} onClick={() => setFiltroTipo(f.val)} style={{
               ...base.btnSm(filtroTipo === f.val ? C.accent : C.card2, filtroTipo === f.val ? "#000" : C.muted),
