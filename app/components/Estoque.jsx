@@ -80,7 +80,8 @@ function BarcodeScanner({ onFound, onClose }) {
 
 export default function Estoque() {
   const [produtos, setProdutos] = useState([]);
-  const [form, setForm] = useState({ nome: "", categoria: "bebida", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "" });
+  const [categorias, setCategorias] = useState([]);
+  const [form, setForm] = useState({ nome: "", categoria: "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "" });
   const [showForm, setShowForm] = useState(false);
   const [entradaModal, setEntradaModal] = useState(null);
   const [qtdEntrada, setQtdEntrada] = useState("");
@@ -94,13 +95,21 @@ export default function Estoque() {
     setProdutos(data || []);
   }, []);
 
+  const loadCategorias = useCallback(async () => {
+    const { data } = await supabase.from("categorias").select("*").order("nome");
+    setCategorias(data || []);
+    if (data?.length > 0) setForm(f => ({ ...f, categoria: f.categoria || data[0].nome }));
+  }, []);
+
   useEffect(() => {
     load();
+    loadCategorias();
     const channel = supabase.channel("estoque-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "categorias" }, loadCategorias)
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [load]);
+  }, [load, loadCategorias]);
 
   const esgotados = produtos.filter(p => p.estoque_atual === 0);
   const baixos = produtos.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
@@ -173,9 +182,7 @@ export default function Estoque() {
             <div>
               <label style={base.label}>Categoria</label>
               <select style={base.select} value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}>
-                <option value="bebida">🍺 Bebida</option>
-                <option value="espeto">🍢 Espeto</option>
-                <option value="outro">📦 Outro</option>
+                {categorias.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
               </select>
             </div>
           </div>
@@ -224,9 +231,7 @@ export default function Estoque() {
               <div>
                 <label style={base.label}>Categoria</label>
                 <select style={base.select} value={editForm.categoria} onChange={e => setEditForm({ ...editForm, categoria: e.target.value })}>
-                  <option value="bebida">🍺 Bebida</option>
-                  <option value="espeto">🍢 Espeto</option>
-                  <option value="outro">📦 Outro</option>
+                  {categorias.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                 </select>
               </div>
               <div>

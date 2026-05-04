@@ -183,7 +183,16 @@ export default function App() {
         </div>
 
         <div className="main-content" style={{ flex: 1, padding: 28, overflowY: "auto" }}>
-          {renderPage()}
+          <style>{`
+            @keyframes fadeSlide {
+              from { opacity: 0; transform: translateY(10px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .page-anim { animation: fadeSlide 0.22s ease; }
+          `}</style>
+          <div key={page} className="page-anim">
+            {renderPage()}
+          </div>
         </div>
       </div>
     </div>

@@ -349,6 +349,59 @@ export default function Comandas() {
     setModalPedido(true);
   };
 
+  const imprimirComanda = () => {
+    if (!selected) return;
+    const total = itens.reduce((a, i) => a + Number(i.subtotal), 0);
+    const agora = new Date().toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const linhaDiv = "================================";
+
+    const conteudo = `
+      <html><head><title>Comanda</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Courier New', monospace; font-size: 13px; width: 280px; padding: 10px; color: #000; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .linha { border-top: 1px dashed #000; margin: 6px 0; }
+        .row { display: flex; justify-content: space-between; margin: 3px 0; }
+        .total { font-size: 16px; font-weight: bold; }
+        @media print { body { width: 100%; } }
+      </style></head>
+      <body>
+        <div class="center bold" style="font-size:16px; margin-bottom:4px;">🍺 Império Bebidas</div>
+        <div class="center" style="font-size:11px; margin-bottom:8px;">Sistema de Gestão</div>
+        <div class="linha"></div>
+        <div class="row"><span>Cliente:</span><span class="bold">${selected.nome_cliente}</span></div>
+        ${selected.mesa ? `<div class="row"><span>Mesa:</span><span>${selected.mesa}</span></div>` : ""}
+        <div class="row"><span>Data/Hora:</span><span>${agora}</span></div>
+        <div class="linha"></div>
+        <div class="bold" style="margin-bottom:4px;">ITENS:</div>
+        ${itens.map(i => `
+          <div class="row">
+            <span>${i.produtos?.nome || i.nome_produto}</span>
+            <span>${i.quantidade}x</span>
+          </div>
+          <div class="row" style="padding-left:10px; color:#444;">
+            <span>R$ ${Number(i.preco_unitario).toFixed(2).replace(".", ",")} un</span>
+            <span class="bold">R$ ${Number(i.subtotal).toFixed(2).replace(".", ",")}</span>
+          </div>
+        `).join("")}
+        <div class="linha"></div>
+        <div class="row total">
+          <span>TOTAL:</span>
+          <span>R$ ${total.toFixed(2).replace(".", ",")}</span>
+        </div>
+        <div class="linha"></div>
+        <div class="center" style="font-size:11px; margin-top:8px;">Obrigado pela preferência!</div>
+      </body></html>
+    `;
+
+    const janela = window.open("", "_blank", "width=320,height=600");
+    janela.document.write(conteudo);
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => { janela.print(); }, 300);
+  };
   const totalComanda = itens.reduce((a, i) => a + Number(i.subtotal), 0);
   const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
 
@@ -422,6 +475,7 @@ export default function Comandas() {
                       <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>Leitor ativo</span>
                     </div>
                   )}
+                  <button style={base.btn("#6366f1", "#fff")} onClick={imprimirComanda}>🖨️ Imprimir</button>
                   <button style={base.btn(C.green, "#fff")} onClick={() => setModalFechar(true)}>✅ Fechar Conta</button>
                 </div>
               </div>
@@ -526,12 +580,12 @@ export default function Comandas() {
               </div>
             )}
             <input style={{ ...base.input, marginBottom: 16 }} value={busca} onChange={e => setBusca(e.target.value)} placeholder="🔍 Buscar produto..." autoFocus />
-            {["espeto", "bebida", "outro"].map(cat => {
+            {[...new Set(produtosFiltrados.map(p => p.categoria))].map(cat => {
               const itenscat = produtosFiltrados.filter(p => p.categoria === cat);
               if (!itenscat.length) return null;
               return (
                 <div key={cat} style={{ marginBottom: 14 }}>
-                  <div style={base.sectionTitle}>{cat === "espeto" ? "🍢 Espetos" : cat === "bebida" ? "🍺 Bebidas" : "📦 Outros"}</div>
+                  <div style={base.sectionTitle}>📦 {cat}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     {itenscat.map(p => {
                       const esgotado = p.estoque_atual <= 0;

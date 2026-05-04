@@ -1,214 +1,332 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt } from "./shared/constants";
-import TrocoCalculator from "./shared/TrocoCalculator";
 
-// ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
-function useBarcodeListener(onScan) {
-  const buffer = useRef("");
-  const timer = useRef(null);
+// ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
+function BarcodeScanner({ onFound, onClose }) {
+  const [codigoManual, setCodigoManual] = useState("");
+  const [resultado, setResultado] = useState(null);
+  const [erro, setErro] = useState("");
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    const handler = (e) => {
-      // Ignora se foco está em input de texto normal
-      const tag = document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if (inputRef.current) inputRef.current.focus();
+  }, []);
 
-      if (e.key === "Enter") {
-        if (buffer.current.length >= 3) onScan(buffer.current);
-        buffer.current = "";
-        clearTimeout(timer.current);
-        return;
-      }
+  const buscarPorCodigo = async (codigo) => {
+    if (!codigo) return;
+    const { data } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).single();
+    if (data) {
+      setResultado(data);
+      setErro("");
+    } else {
+      setResultado(null);
+      setErro(`Produto não encontrado para o código: ${codigo}`);
+    }
+  };
 
-      if (e.key.length === 1) {
-        buffer.current += e.key;
-        clearTimeout(timer.current);
-        // Se demorar mais de 100ms entre teclas, limpa o buffer (digitação humana)
-        timer.current = setTimeout(() => { buffer.current = ""; }, 100);
-      }
-    };
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") buscarPorCodigo(codigoManual);
+  };
 
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onScan]);
+  return (
+    <div style={base.modal}>
+      <div style={{ ...base.modalBox, maxWidth: 460 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>📷 Leitor de Código de Barras</div>
+          <button style={base.btnSm(C.card2, C.muted)} onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+            Aponte o leitor de código de barras ou digite o código abaixo
+          </div>
+          <div style={base.row}>
+            <input
+              ref={inputRef}
+              style={{ ...base.input, flex: 1 }}
+              value={codigoManual}
+              onChange={e => setCodigoManual(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Código de barras..."
+            />
+            <button style={base.btn()} onClick={() => buscarPorCodigo(codigoManual)}>Buscar</button>
+          </div>
+        </div>
+
+        {erro && <div style={base.alert(C.red)}>{erro}</div>}
+
+        {resultado && (
+          <div style={{ background: `${C.green}15`, border: `1px solid ${C.green}40`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: C.green, marginBottom: 8, fontWeight: 700 }}>✅ Produto encontrado!</div>
+            <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>{resultado.nome}</div>
+            <div style={{ fontSize: 13, color: C.muted }}>Estoque atual: <strong style={{ color: C.accent }}>{resultado.estoque_atual} {resultado.unidade}</strong></div>
+            <div style={{ fontSize: 13, color: C.muted }}>Preço: <strong style={{ color: C.accent }}>{fmt(resultado.preco)}</strong></div>
+            <div style={base.row}>
+              <button style={{ ...base.btn(C.green, "#fff"), marginTop: 12 }} onClick={() => { onFound(resultado); onClose(); }}>
+                + Dar Entrada no Estoque
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ fontSize: 12, color: C.muted, textAlign: "center" }}>
+          Leitor USB funciona automaticamente ao bipар o produto
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export default function VendaRapida() {
+export default function Estoque() {
   const [produtos, setProdutos] = useState([]);
-  const [carrinho, setCarrinho] = useState([]);
-  const [busca, setBusca] = useState("");
-  const [pagamento, setPagamento] = useState("pix");
-  const [sucesso, setSucesso] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [scanFeedback, setScanFeedback] = useState(null);
+  const [categorias, setCategorias] = useState([]);
+  const [form, setForm] = useState({ nome: "", categoria: "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "" });
+  const [showForm, setShowForm] = useState(false);
+  const [entradaModal, setEntradaModal] = useState(null);
+  const [qtdEntrada, setQtdEntrada] = useState("");
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [erroForm, setErroForm] = useState("");
+  const [showScanner, setShowScanner] = useState(false);
 
-  const loadProdutos = useCallback(async () => {
+  const load = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
-    const unicos = (data || []).filter((p, idx, arr) => arr.findIndex(x => x.id === p.id) === idx);
-    setProdutos(unicos);
+    setProdutos(data || []);
+  }, []);
+
+  const loadCategorias = useCallback(async () => {
+    const { data } = await supabase.from("categorias").select("*").order("nome");
+    setCategorias(data || []);
+    if (data?.length > 0) setForm(f => ({ ...f, categoria: f.categoria || data[0].nome }));
   }, []);
 
   useEffect(() => {
-    loadProdutos();
-    const channel = supabase.channel("venda-rapida-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, loadProdutos)
+    load();
+    loadCategorias();
+    const channel = supabase.channel("estoque-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "categorias" }, loadCategorias)
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [loadProdutos]);
+  }, [load, loadCategorias]);
 
-  const filtrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
-  const total = carrinho.reduce((a, i) => a + i.subtotal, 0);
+  const esgotados = produtos.filter(p => p.estoque_atual === 0);
+  const baixos = produtos.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
 
-  const [ultimoAdicionado, setUltimoAdicionado] = useState(null);
-
-  const add = (p) => {
-    if (p.estoque_atual <= 0) return;
-    const noCarrinho = carrinho.find(i => i.produto_id === p.id);
-    if (noCarrinho && noCarrinho.quantidade >= p.estoque_atual) return;
-    setCarrinho(c => {
-      const ex = c.find(i => i.produto_id === p.id);
-      if (ex) return c.map(i => i.produto_id === p.id ? { ...i, quantidade: i.quantidade + 1, subtotal: (i.quantidade + 1) * i.preco_unitario } : i);
-      return [...c, { produto_id: p.id, nome_produto: p.nome, quantidade: 1, preco_unitario: p.preco, subtotal: p.preco }];
-    });
-    setUltimoAdicionado(p.nome);
-    setTimeout(() => setUltimoAdicionado(null), 1500);
+  const salvar = async () => {
+    if (!form.nome || !form.preco) return;
+    const { data: existente } = await supabase.from("produtos").select("id").eq("nome", form.nome).eq("ativo", true).single();
+    if (existente) { setErroForm(`Já existe um produto com o nome "${form.nome}".`); return; }
+    setErroForm("");
+    await supabase.from("produtos").insert({ ...form, preco: Number(form.preco), estoque_atual: Number(form.estoque_atual), estoque_minimo: Number(form.estoque_minimo) });
+    setForm({ nome: "", categoria: "bebida", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un" });
+    setShowForm(false); load();
   };
 
-  // Scan automático por código de barras
-  const handleScan = useCallback(async (codigo) => {
-    const { data } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).single();
-    if (data) {
-      add(data);
-    } else {
-      setScanFeedback({ tipo: "erro", msg: `Código não encontrado: ${codigo}` });
-      setTimeout(() => setScanFeedback(null), 2000);
-    }
-  }, [produtos]);
-
-  useBarcodeListener(handleScan);
-
-  const changeQtd = (id, qtd) => {
-    if (qtd < 1) return setCarrinho(c => c.filter(i => i.produto_id !== id));
-    const prod = produtos.find(p => p.id === id);
-    if (prod && qtd > prod.estoque_atual) return;
-    setCarrinho(c => c.map(i => i.produto_id === id ? { ...i, quantidade: qtd, subtotal: qtd * i.preco_unitario } : i));
+  const entradaEstoque = async () => {
+    if (!qtdEntrada || !entradaModal) return;
+    await supabase.from("produtos").update({ estoque_atual: entradaModal.estoque_atual + Number(qtdEntrada) }).eq("id", entradaModal.id);
+    await supabase.from("estoque_movimentacoes").insert({ produto_id: entradaModal.id, tipo: "entrada", quantidade: Number(qtdEntrada), motivo: "reposição manual" });
+    setEntradaModal(null); setQtdEntrada(""); load();
   };
 
-  const finalizar = async () => {
-    if (!carrinho.length) return;
-    setLoading(true);
-    const { data: venda } = await supabase.from("vendas").insert({ total, forma_pagamento: pagamento, status: "concluida" }).select().single();
-    if (venda) {
-      await supabase.from("venda_itens").insert(carrinho.map(i => ({ ...i, venda_id: venda.id })));
-      await supabase.from("financeiro").insert({ tipo: "entrada", descricao: "Venda Rápida", valor: total, categoria: "venda" });
-      for (const item of carrinho) {
-        const { data: prod } = await supabase.from("produtos").select("estoque_atual").eq("id", item.produto_id).single();
-        if (prod) await supabase.from("produtos").update({ estoque_atual: Math.max(0, prod.estoque_atual - item.quantidade) }).eq("id", item.produto_id);
-      }
-    }
-    setCarrinho([]); setSucesso(true); setLoading(false);
-    setTimeout(() => setSucesso(false), 3000);
+  const salvarEdicao = async () => {
+    if (!editModal) return;
+    await supabase.from("produtos").update({ ...editForm, preco: Number(editForm.preco), estoque_minimo: Number(editForm.estoque_minimo) }).eq("id", editModal.id);
+    setEditModal(null); load();
+  };
+
+  const desativar = async (id) => {
+    await supabase.from("produtos").update({ ativo: false }).eq("id", id);
+    load();
   };
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={base.pageTitle}>⚡ Venda Rápida</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.green}40`, borderRadius: 8, padding: "6px 12px" }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.green }} />
-          <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>Leitor ativo</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+        <div style={base.pageTitle}>Estoque</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button style={base.btn(C.blue, "#fff")} onClick={() => setShowScanner(true)}>📷 Bipar Produto</button>
+          <button style={base.btn()} onClick={() => setShowForm(!showForm)}>+ Novo Produto</button>
         </div>
       </div>
 
-      {sucesso && <div style={{ ...base.alert(C.green), marginBottom: 16 }}>✅ Venda registrada!</div>}
-      {scanFeedback && (
-        <div style={{ ...base.alert(scanFeedback.tipo === "erro" ? C.red : C.green), marginBottom: 16 }}>
-          {scanFeedback.tipo === "erro" ? "❌" : "✅"} {scanFeedback.msg}
+      {showScanner && (
+        <BarcodeScanner
+          onFound={(produto) => setEntradaModal(produto)}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {esgotados.length > 0 && <div style={base.alert("#a855f7")}>🚫 <strong>{esgotados.length} esgotado(s):</strong> {esgotados.map(p => p.nome).join(", ")}</div>}
+      {baixos.length > 0 && <div style={base.alert(C.red)}>⚠️ <strong>{baixos.length} estoque baixo:</strong> {baixos.map(p => p.nome).join(", ")}</div>}
+
+      {showForm && (
+        <div style={{ ...base.card, marginBottom: 16 }}>
+          <div style={base.sectionTitle}>Novo Produto</div>
+          <div className="grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 14 }}>
+            {[
+              { label: "Nome *", key: "nome", type: "text", placeholder: "Ex: Heineken 600ml" },
+              { label: "Preço (R$) *", key: "preco", type: "number", placeholder: "0,00" },
+              { label: "Estoque Atual", key: "estoque_atual", type: "number", placeholder: "0" },
+              { label: "Estoque Mínimo", key: "estoque_minimo", type: "number", placeholder: "5" },
+              { label: "Unidade", key: "unidade", type: "text", placeholder: "un, kg, l..." },
+              { label: "Código de Barras", key: "codigo_barras", type: "text", placeholder: "Bipe ou digite..." },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={base.label}>{f.label}</label>
+                <input style={base.input} type={f.type} placeholder={f.placeholder} value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
+              </div>
+            ))}
+            <div>
+              <label style={base.label}>Categoria</label>
+              <select style={base.select} value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}>
+                {categorias.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={base.row}>
+            <button style={base.btn(C.green, "#fff")} onClick={salvar}>Salvar</button>
+            <button style={base.btnOutline} onClick={() => { setShowForm(false); setErroForm(""); }}>Cancelar</button>
+          </div>
+          {erroForm && <div style={{ ...base.alert(C.red), marginTop: 12, marginBottom: 0 }}>⚠️ {erroForm}</div>}
         </div>
       )}
 
-      <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
-        {/* Produtos */}
-        <div>
-          <div style={{ ...base.card, marginBottom: 12 }}>
-            <input style={base.input} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
-          </div>
-
-          {ultimoAdicionado && (
-            <div style={{ background: `${C.green}20`, border: `1px solid ${C.green}50`, borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.green, fontWeight: 600 }}>
-              <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-              ✅ {ultimoAdicionado} adicionado ao carrinho!
+      {/* Modal Entrada */}
+      {entradaModal && (
+        <div style={base.modal}>
+          <div style={base.modalBox}>
+            <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 6 }}>Entrada de Estoque</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>{entradaModal.nome} · Atual: {entradaModal.estoque_atual}</div>
+            <label style={base.label}>Quantidade a adicionar</label>
+            <input style={{ ...base.input, marginBottom: 16 }} type="number" value={qtdEntrada} onChange={e => setQtdEntrada(e.target.value)} placeholder="Ex: 24" autoFocus />
+            <div style={base.row}>
+              <button style={base.btn(C.green, "#fff")} onClick={entradaEstoque}>Confirmar</button>
+              <button style={base.btnOutline} onClick={() => { setEntradaModal(null); setQtdEntrada(""); }}>Cancelar</button>
             </div>
-          )}
-          <div style={{ ...base.card, maxHeight: 520, overflowY: "auto" }}>
-            {["espeto", "bebida", "outro"].map(cat => {
-              const itens = filtrados.filter(p => p.categoria === cat);
-              if (!itens.length) return null;
-              return (
-                <div key={cat} style={{ marginBottom: 16 }}>
-                  <div style={base.sectionTitle}>{cat === "espeto" ? "🍢 Espetos" : cat === "bebida" ? "🍺 Bebidas" : "📦 Outros"}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8 }}>
-                    {itens.map(p => {
-                      const noCarrinho = carrinho.find(i => i.produto_id === p.id);
-                      const qtdCarrinho = noCarrinho ? noCarrinho.quantidade : 0;
-                      const disponivelReal = p.estoque_atual - qtdCarrinho;
-                      const esgotado = disponivelReal <= 0;
-                      return (
-                        <button key={p.id} onClick={() => add(p)} disabled={esgotado}
-                          style={{ background: esgotado ? "#111100" : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative" }}>
-                          {esgotado && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>ESGOTADO</div>}
-                          <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
-                          <div style={{ fontSize: 13, color: esgotado ? C.muted : C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
-                          <div style={{ fontSize: 11, color: esgotado ? "#a855f7" : disponivelReal <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>disponível: {Math.max(0, disponivelReal)}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
+      )}
 
-        {/* Carrinho */}
-        <div style={base.card}>
-          <div style={base.sectionTitle}>🛒 Carrinho</div>
-          {carrinho.length === 0 && <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "32px 0" }}>Selecione produtos ao lado</div>}
-          <div style={{ maxHeight: 280, overflowY: "auto", marginBottom: 12 }}>
-            {carrinho.map(i => (
-              <div key={i.produto_id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <div style={{ flex: 1, fontSize: 13, color: C.text }}>{i.nome_produto}</div>
-                <div style={base.row}>
-                  <button onClick={() => changeQtd(i.produto_id, i.quantidade - 1)} style={{ ...base.btnSm(C.card2, C.muted), border: `1px solid ${C.border}` }}>−</button>
-                  <span style={{ fontSize: 14, fontWeight: 700, minWidth: 20, textAlign: "center", color: C.text }}>{i.quantidade}</span>
-                  <button onClick={() => changeQtd(i.produto_id, i.quantidade + 1)} style={{ ...base.btnSm(C.card2, C.muted), border: `1px solid ${C.border}` }}>+</button>
-                </div>
-                <div style={{ fontSize: 13, color: C.accent, fontWeight: 700, minWidth: 70, textAlign: "right" }}>{fmt(i.subtotal)}</div>
+      {/* Modal Editar */}
+      {editModal && (
+        <div style={base.modal}>
+          <div style={base.modalBox}>
+            <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 20 }}>✏️ Editar Produto</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={base.label}>Nome</label>
+                <input style={base.input} value={editForm.nome} onChange={e => setEditForm({ ...editForm, nome: e.target.value })} />
               </div>
-            ))}
-          </div>
-          {carrinho.length > 0 && (
-            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
-              <div style={{ marginBottom: 12 }}>
-                <label style={base.label}>Pagamento</label>
-                <select style={base.select} value={pagamento} onChange={e => setPagamento(e.target.value)}>
-                  <option value="pix">PIX</option>
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="cartao_debito">Cartão Débito</option>
-                  <option value="cartao_credito">Cartão Crédito</option>
+              <div>
+                <label style={base.label}>Preço (R$)</label>
+                <input style={base.input} type="number" value={editForm.preco} onChange={e => setEditForm({ ...editForm, preco: e.target.value })} />
+              </div>
+              <div>
+                <label style={base.label}>Estoque Mínimo</label>
+                <input style={base.input} type="number" value={editForm.estoque_minimo} onChange={e => setEditForm({ ...editForm, estoque_minimo: e.target.value })} />
+              </div>
+              <div>
+                <label style={base.label}>Categoria</label>
+                <select style={base.select} value={editForm.categoria} onChange={e => setEditForm({ ...editForm, categoria: e.target.value })}>
+                  {categorias.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                 </select>
               </div>
-              {pagamento === "dinheiro" && <div style={{ marginBottom: 12 }}><TrocoCalculator total={total} /></div>}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 20, fontWeight: 900, marginBottom: 14, color: C.text }}>
-                <span>Total</span><span style={{ color: C.accent }}>{fmt(total)}</span>
+              <div>
+                <label style={base.label}>Unidade</label>
+                <input style={base.input} value={editForm.unidade} onChange={e => setEditForm({ ...editForm, unidade: e.target.value })} />
               </div>
-              <button style={{ ...base.btn(C.green, "#fff"), width: "100%", padding: "13px", fontSize: 15 }} onClick={finalizar} disabled={loading}>
-                {loading ? "Registrando..." : "✅ Finalizar Venda"}
-              </button>
             </div>
-          )}
+            <div style={base.row}>
+              <button style={base.btn(C.green, "#fff")} onClick={salvarEdicao}>Salvar</button>
+              <button style={base.btnOutline} onClick={() => setEditModal(null)}>Cancelar</button>
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Tabela desktop / Cards mobile */}
+      <div style={base.card}>
+        <style>{`
+          @media (max-width: 768px) { .estoque-table { display: none !important; } .estoque-cards { display: flex !important; } }
+          @media (min-width: 769px) { .estoque-cards { display: none !important; } }
+        `}</style>
+
+        {/* Cards mobile */}
+        <div className="estoque-cards" style={{ flexDirection: "column", gap: 10, display: "none" }}>
+          {produtos.map(p => {
+            const esgotado = p.estoque_atual === 0;
+            const baixo = !esgotado && p.estoque_atual <= p.estoque_minimo;
+            const statusCor = esgotado ? "#a855f7" : baixo ? C.red : C.green;
+            const statusLabel = esgotado ? "🚫 Esgotado" : baixo ? "⚠️ Baixo" : "✅ OK";
+            return (
+              <div key={p.id} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: C.text, fontSize: 14, marginBottom: 4 }}>{p.nome}</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <span style={base.tag(C.accent)}>{p.categoria}</span>
+                      <span style={base.tag(statusCor)}>{statusLabel}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: C.accent, fontWeight: 800, fontSize: 16 }}>{fmt(p.preco)}</div>
+                    <div style={{ color: esgotado ? "#a855f7" : C.text, fontWeight: 700, fontSize: 13 }}>{p.estoque_atual} {p.unidade}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditModal(p); setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade }); }}>✏️ Editar</button>
+                  <button style={base.btnSm()} onClick={() => setEntradaModal(p)}>+ Entrada</button>
+                  <button style={base.btnSm(C.red, "#fff")} onClick={() => desativar(p.id)}>Remover</button>
+                </div>
+              </div>
+            );
+          })}
+          {produtos.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 32, fontSize: 13 }}>Nenhum produto cadastrado</div>}
+        </div>
+
+        {/* Tabela desktop */}
+        <table className="estoque-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={base.th}>Produto</th>
+              <th style={base.th}>Categoria</th>
+              <th style={base.th}>Preço</th>
+              <th style={base.th}>Estoque</th>
+              <th style={base.th}>Mínimo</th>
+              <th style={base.th}>Status</th>
+              <th style={base.th}>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {produtos.map(p => {
+              const esgotado = p.estoque_atual === 0;
+              const baixo = !esgotado && p.estoque_atual <= p.estoque_minimo;
+              const statusCor = esgotado ? "#a855f7" : baixo ? C.red : C.green;
+              const statusLabel = esgotado ? "🚫 Esgotado" : baixo ? "⚠️ Baixo" : "✅ OK";
+              return (
+                <tr key={p.id}>
+                  <td style={base.td}>{p.nome}</td>
+                  <td style={base.td}><span style={base.tag(C.accent)}>{p.categoria}</span></td>
+                  <td style={{ ...base.td, color: C.accent, fontWeight: 700 }}>{fmt(p.preco)}</td>
+                  <td style={{ ...base.td, fontWeight: 700, color: esgotado ? "#a855f7" : C.text }}>{p.estoque_atual} {p.unidade}</td>
+                  <td style={base.td}>{p.estoque_minimo}</td>
+                  <td style={base.td}><span style={base.tag(statusCor)}>{statusLabel}</span></td>
+                  <td style={base.td}>
+                    <div style={base.row}>
+                      <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditModal(p); setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade }); }}>✏️ Editar</button>
+                      <button style={base.btnSm()} onClick={() => setEntradaModal(p)}>+ Entrada</button>
+                      <button style={base.btnSm(C.red, "#fff")} onClick={() => desativar(p.id)}>Remover</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {produtos.length === 0 && <tr><td colSpan={7} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum produto cadastrado</td></tr>}
+          </tbody>
+        </table>
       </div>
     </div>
   );

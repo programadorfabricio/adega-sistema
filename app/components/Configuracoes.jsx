@@ -28,7 +28,27 @@ export default function Configuracoes() {
     } catch (e) {}
   }, []);
 
-  useEffect(() => { loadUsuarios(); loadConfig(); }, [loadUsuarios, loadConfig]);
+  const [categorias, setCategorias] = useState([]);
+  const [novaCategoria, setNovaCategoria] = useState("");
+
+  const loadCategorias = useCallback(async () => {
+    const { data } = await supabase.from("categorias").select("*").order("nome");
+    setCategorias(data || []);
+  }, []);
+
+  useEffect(() => { loadUsuarios(); loadConfig(); loadCategorias(); }, [loadUsuarios, loadConfig, loadCategorias]);
+
+  const adicionarCategoria = async () => {
+    if (!novaCategoria.trim()) return;
+    await supabase.from("categorias").insert({ nome: novaCategoria.trim().toLowerCase() });
+    setNovaCategoria("");
+    loadCategorias();
+  };
+
+  const removerCategoria = async (id) => {
+    await supabase.from("categorias").delete().eq("id", id);
+    loadCategorias();
+  };
 
   const salvarUsuario = async () => {
     if (!form.nome) return;
@@ -204,6 +224,26 @@ export default function Configuracoes() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Categorias */}
+      <div style={{ ...base.card, marginTop: 20 }}>
+        <div style={{ ...base.row, justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={base.sectionTitle}>🏷️ Categorias de Produto</div>
+        </div>
+        <div style={{ ...base.row, marginBottom: 16 }}>
+          <input style={{ ...base.input, flex: 1 }} value={novaCategoria} onChange={e => setNovaCategoria(e.target.value)} placeholder="Ex: drinks, tabacaria, gelo..." onKeyDown={e => e.key === "Enter" && adicionarCategoria()} />
+          <button style={base.btn()} onClick={adicionarCategoria}>+ Adicionar</button>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {categorias.map(c => (
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px" }}>
+              <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>{c.nome}</span>
+              <button onClick={() => removerCategoria(c.id)} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, lineHeight: 1 }}>✕</button>
+            </div>
+          ))}
+          {categorias.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhuma categoria cadastrada</div>}
+        </div>
       </div>
     </div>
   );
