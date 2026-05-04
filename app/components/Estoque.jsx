@@ -71,7 +71,7 @@ function BarcodeScanner({ onFound, onClose }) {
         )}
 
         <div style={{ fontSize: 12, color: C.muted, textAlign: "center" }}>
-          Leitor USB funciona automaticamente ao bipар o produto
+          Leitor USB funciona automaticamente ao bipar o produto
         </div>
       </div>
     </div>
@@ -97,8 +97,13 @@ export default function Estoque() {
 
   const loadCategorias = useCallback(async () => {
     const { data } = await supabase.from("categorias").select("*").order("nome");
-    setCategorias(data || []);
-    if (data?.length > 0) setForm(f => ({ ...f, categoria: f.categoria || data[0].nome }));
+
+    const unicas = data
+      ? data.filter((c, i, arr) => arr.findIndex(x => x.nome === c.nome) === i)
+      : [];
+
+    setCategorias(unicas);
+    if (unicas.length > 0) setForm(f => ({ ...f, categoria: f.categoria || unicas[0].nome }));
   }, []);
 
   useEffect(() => {
@@ -120,7 +125,7 @@ export default function Estoque() {
     if (existente) { setErroForm(`Já existe um produto com o nome "${form.nome}".`); return; }
     setErroForm("");
     await supabase.from("produtos").insert({ ...form, preco: Number(form.preco), estoque_atual: Number(form.estoque_atual), estoque_minimo: Number(form.estoque_minimo) });
-    setForm({ nome: "", categoria: "bebida", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un" });
+    setForm({ nome: "", categoria: categorias[0]?.nome || "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un" });
     setShowForm(false); load();
   };
 
@@ -141,6 +146,9 @@ export default function Estoque() {
     await supabase.from("produtos").update({ ativo: false }).eq("id", id);
     load();
   };
+
+  // Estilo das <option> para forçar cores corretas em todos os navegadores
+  const optionStyle = { background: "#1a1800", color: "#f5f0e0" };
 
   return (
     <div>
@@ -182,7 +190,9 @@ export default function Estoque() {
             <div>
               <label style={base.label}>Categoria</label>
               <select style={base.select} value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}>
-                {categorias.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                {categorias.map(c => (
+                  <option key={c.id} value={c.nome} style={optionStyle}>{c.nome}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -231,7 +241,9 @@ export default function Estoque() {
               <div>
                 <label style={base.label}>Categoria</label>
                 <select style={base.select} value={editForm.categoria} onChange={e => setEditForm({ ...editForm, categoria: e.target.value })}>
-                  {categorias.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                  {categorias.map(c => (
+                    <option key={c.id} value={c.nome} style={optionStyle}>{c.nome}</option>
+                  ))}
                 </select>
               </div>
               <div>
