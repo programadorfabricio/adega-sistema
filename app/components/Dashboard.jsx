@@ -6,18 +6,21 @@ export default function Dashboard({ setPage }) {
   const [stats, setStats] = useState({ vendasHoje: 0, totalHoje: 0, estoqueBaixo: 0, esgotados: 0, saldoMes: 0, comandasAbertas: 0 });
   const [recentes, setRecentes] = useState([]);
   const [alertas, setAlertas] = useState([]);
+  const [grafico7dias, setGrafico7dias] = useState([]);
 
   useEffect(() => {
     async function load() {
       const inicioHoje = new Date(); inicioHoje.setHours(0, 0, 0, 0);
       const mesAtual = today().slice(0, 7) + "-01";
+      const seteDiasAtras = new Date(); seteDiasAtras.setDate(seteDiasAtras.getDate() - 6); seteDiasAtras.setHours(0,0,0,0);
 
-      const [{ data: vendas }, { data: produtos }, { data: fin }, { data: comandas }, { data: ultimasVendas }] = await Promise.all([
+      const [{ data: vendas }, { data: produtos }, { data: fin }, { data: comandas }, { data: ultimasVendas }, { data: vendasSemana }] = await Promise.all([
         supabase.from("vendas").select("*").gte("created_at", inicioHoje.toISOString()).eq("status", "concluida"),
         supabase.from("produtos").select("*").eq("ativo", true),
         supabase.from("financeiro").select("*").gte("data", mesAtual),
         supabase.from("comandas").select("*").eq("status", "aberta"),
         supabase.from("vendas").select("*").eq("status", "concluida").order("created_at", { ascending: false }).limit(5),
+        supabase.from("vendas").select("*").eq("status", "concluida").gte("created_at", seteDiasAtras.toISOString()),
       ]);
 
       const esgotados = (produtos || []).filter(p => p.estoque_atual === 0);
@@ -29,6 +32,19 @@ export default function Dashboard({ setPage }) {
       setStats({ vendasHoje: vendas?.length || 0, totalHoje, estoqueBaixo: baixos.length, esgotados: esgotados.length, saldoMes: entradas - saidas, comandasAbertas: comandas?.length || 0 });
       setRecentes(ultimasVendas || []);
       setAlertas([...esgotados, ...baixos]);
+
+      // Monta dados dos últimos 7 dias
+      const diasMap = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const key = d.toISOString().split("T")[0];
+        diasMap[key] = { dia: key, total: 0, label: d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) };
+      }
+      (vendasSemana || []).forEach(v => {
+        const key = v.created_at?.split("T")[0];
+        if (diasMap[key]) diasMap[key].total += Number(v.total);
+      });
+      setGrafico7dias(Object.values(diasMap));
     }
 
     load();
@@ -89,6 +105,28 @@ export default function Dashboard({ setPage }) {
             {recentes.length === 0 && <tr><td colSpan={3} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhuma venda hoje</td></tr>}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ ...base.card, marginBottom: 16 }}>
+        <div style={base.sectionTitle}>📈 Faturamento — Últimos 7 Dias</div>
+        {grafico7dias.length > 0 && (() => {
+          const maxVal = Math.max(...grafico7dias.map(d => d.total), 1);
+          return (
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
+              {grafico7dias.map((d, i) => {
+                const isHoje = i === grafico7dias.length - 1;
+                const altura = d.total > 0 ? Math.max((d.total / maxVal) * 80, 6) : 4;
+                return (
+                  <div key={d.dia} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    {d.total > 0 && <div style={{ fontSize: 10, color: isHoje ? C.accent : C.muted, fontWeight: 700 }}>{fmt(d.total).replace("R$ ", "")}</div>}
+                    <div style={{ width: "100%", height: altura, background: isHoje ? C.accent : `${C.accent}40`, borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} />
+                    <div style={{ fontSize: 10, color: isHoje ? C.accent : C.muted, fontWeight: isHoje ? 700 : 400 }}>{d.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       <div style={base.card}>

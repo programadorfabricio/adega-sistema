@@ -187,7 +187,7 @@ function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loa
 }
 
 // ─── COMANDAS ────────────────────────────────────────────
-export default function Comandas() {
+export default function Comandas({ usuario }) {
   const [comandas, setComandas] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -196,6 +196,9 @@ export default function Comandas() {
   const [modalPedido, setModalPedido] = useState(false);
   const [modalFechar, setModalFechar] = useState(false);
   const [scanFeedback, setScanFeedback] = useState(null);
+  const [modalPin, setModalPin] = useState(null); // item a remover
+  const [pinDigitado, setPinDigitado] = useState("");
+  const [pinErro, setPinErro] = useState("");
 
   const handleScan = useCallback(async (codigo) => {
     if (!selected) return;
@@ -257,9 +260,21 @@ export default function Comandas() {
 
   const abrirComanda = async () => {
     if (!nomeCliente) return;
-    await supabase.from("comandas").insert({ nome_cliente: nomeCliente, mesa: mesa || null, status: "aberta", total: 0 });
+    await supabase.from("comandas").insert({ nome_cliente: nomeCliente, mesa: mesa || null, status: "aberta", total: 0, atendente_nome: usuario?.nome || "—" });
     setNomeCliente(""); setMesa(""); setModalNova(false);
     loadComandas();
+  };
+
+  const confirmarRemocaoComPin = async () => {
+    if (!modalPin) return;
+    const { data: u } = await supabase.from("usuarios").select("pin").eq("id", usuario?.id).single();
+    if (u?.pin !== pinDigitado) {
+      setPinErro("PIN incorreto!");
+      setTimeout(() => { setPinErro(""); setPinDigitado(""); }, 1500);
+      return;
+    }
+    await removerItem(modalPin);
+    setModalPin(null); setPinDigitado(""); setPinErro("");
   };
 
   const selecionarComanda = async (c) => {
@@ -466,6 +481,7 @@ export default function Comandas() {
                   <button onClick={() => setSelected(null)} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", marginBottom: 4, display: "block" }}>← Voltar</button>
                   <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>👤 {selected.nome_cliente}</div>
                   {selected.mesa && <div style={{ fontSize: 13, color: C.muted }}>Mesa {selected.mesa}</div>}
+                  {selected.atendente_nome && <div style={{ fontSize: 12, color: C.muted }}>Aberta por: {selected.atendente_nome}</div>}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button style={base.btn(C.blue, "#fff")} onClick={abrirModalPedido}>+ Adicionar Item</button>
@@ -490,7 +506,7 @@ export default function Comandas() {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                       <span style={{ fontWeight: 800, color: C.accent, fontSize: 15 }}>{fmt(i.subtotal)}</span>
-                      <button style={base.btnSm(C.red, "#fff")} onClick={() => removerItem(i)}>✕</button>
+                      <button style={base.btnSm(C.red, "#fff")} onClick={() => { setModalPin(i); setPinDigitado(""); }}>✕</button>
                     </div>
                   </div>
                 ))}
@@ -515,7 +531,7 @@ export default function Comandas() {
                       <td style={base.td}>{i.quantidade}</td>
                       <td style={base.td}>{fmt(i.preco_unitario)}</td>
                       <td style={{ ...base.td, color: C.accent, fontWeight: 700 }}>{fmt(i.subtotal)}</td>
-                      <td style={base.td}><button style={base.btnSm(C.red, "#fff")} onClick={() => removerItem(i)}>✕</button></td>
+                      <td style={base.td}><button style={base.btnSm(C.red, "#fff")} onClick={() => { setModalPin(i); setPinDigitado(""); }}>✕</button></td>
                     </tr>
                   ))}
                   {itens.length === 0 && <tr><td colSpan={5} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum item ainda</td></tr>}
@@ -539,6 +555,31 @@ export default function Comandas() {
       {scanFeedback && (
         <div style={{ ...base.alert(scanFeedback.tipo === "erro" ? C.red : C.green), marginBottom: 16 }}>
           {scanFeedback.tipo === "erro" ? "❌" : "✅"} {scanFeedback.msg}
+        </div>
+      )}
+
+      {/* Modal PIN para remover item */}
+      {modalPin && (
+        <div style={base.modal}>
+          <div style={{ ...base.modalBox, maxWidth: 340 }}>
+            <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 8 }}>🔒 Confirmar Remoção</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Digite seu PIN para remover <strong style={{ color: C.text }}>{modalPin.produtos?.nome}</strong></div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 14, marginBottom: 16 }}>
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: i < pinDigitado.length ? C.accent : "transparent", border: `2px solid ${i < pinDigitado.length ? C.accent : C.border}` }} />
+              ))}
+            </div>
+            {pinErro && <div style={{ ...base.alert(C.red), marginBottom: 12, justifyContent: "center" }}>{pinErro}</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}>
+              {[1,2,3,4,5,6,7,8,9].map(n => (
+                <button key={n} onClick={() => { if (pinDigitado.length < 4) { const novo = pinDigitado + n; setPinDigitado(novo); if (novo.length === 4) { setTimeout(() => confirmarRemocaoComPin(), 100); } } }} style={{ ...base.btn(C.card2, C.text), border: `1px solid ${C.border}`, fontSize: 18, padding: "14px" }}>{n}</button>
+              ))}
+              <div />
+              <button onClick={() => { if (pinDigitado.length < 4) { const novo = pinDigitado + "0"; setPinDigitado(novo); if (novo.length === 4) { setTimeout(() => confirmarRemocaoComPin(), 100); } } }} style={{ ...base.btn(C.card2, C.text), border: `1px solid ${C.border}`, fontSize: 18, padding: "14px" }}>0</button>
+              <button onClick={() => setPinDigitado(p => p.slice(0,-1))} style={{ ...base.btn(C.card2, C.muted), border: `1px solid ${C.border}`, fontSize: 16, padding: "14px" }}>⌫</button>
+            </div>
+            <button style={{ ...base.btnOutline, width: "100%" }} onClick={() => { setModalPin(null); setPinDigitado(""); setPinErro(""); }}>Cancelar</button>
+          </div>
         </div>
       )}
 

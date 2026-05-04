@@ -139,7 +139,7 @@ export default function App() {
   const renderPage = () => {
     switch (page) {
       case "dashboard": return <Dashboard setPage={setPage} />;
-      case "comandas": return <Comandas />;
+      case "comandas": return <Comandas usuario={usuario} />;
       case "venda": return <VendaRapida />;
       case "estoque": return <Estoque />;
       case "financeiro": return <Financeiro />;
