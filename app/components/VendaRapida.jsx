@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, SCHEMA } from "./shared/constants";
+import { supabase, C, base, fmt, SCHEMA, semEstoque } from "./shared/constants";
 import TrocoCalculator from "./shared/TrocoCalculator";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -63,9 +63,11 @@ export default function VendaRapida() {
   const [ultimoAdicionado, setUltimoAdicionado] = useState(null);
 
   const add = (p) => {
-    if (p.estoque_atual <= 0) return;
     const noCarrinho = carrinho.find(i => i.produto_id === p.id);
-    if (noCarrinho && noCarrinho.quantidade >= p.estoque_atual) return;
+    if (!semEstoque(p)) {
+      if (p.estoque_atual <= 0) return;
+      if (noCarrinho && noCarrinho.quantidade >= p.estoque_atual) return;
+    }
     setCarrinho(c => {
       const ex = c.find(i => i.produto_id === p.id);
       if (ex) return c.map(i => i.produto_id === p.id ? { ...i, quantidade: i.quantidade + 1, subtotal: (i.quantidade + 1) * i.preco_unitario } : i);
@@ -91,7 +93,7 @@ export default function VendaRapida() {
   const changeQtd = (id, qtd) => {
     if (qtd < 1) return setCarrinho(c => c.filter(i => i.produto_id !== id));
     const prod = produtos.find(p => p.id === id);
-    if (prod && qtd > prod.estoque_atual) return;
+    if (prod && !semEstoque(prod) && qtd > prod.estoque_atual) return;
     setCarrinho(c => c.map(i => i.produto_id === id ? { ...i, quantidade: qtd, subtotal: qtd * i.preco_unitario } : i));
   };
 
@@ -103,8 +105,8 @@ export default function VendaRapida() {
       await supabase.from("venda_itens").insert(carrinho.map(i => ({ ...i, venda_id: venda.id })));
       await supabase.from("financeiro").insert({ tipo: "entrada", descricao: "Venda Rápida", valor: total, categoria: "venda" });
       for (const item of carrinho) {
-        const { data: prod } = await supabase.from("produtos").select("estoque_atual").eq("id", item.produto_id).single();
-        if (prod) await supabase.from("produtos").update({ estoque_atual: Math.max(0, prod.estoque_atual - item.quantidade) }).eq("id", item.produto_id);
+        const { data: prod } = await supabase.from("produtos").select("*").eq("id", item.produto_id).single();
+        if (prod && !semEstoque(prod)) await supabase.from("produtos").update({ estoque_atual: Math.max(0, prod.estoque_atual - item.quantidade) }).eq("id", item.produto_id);
       }
     }
     setCarrinho([]); setSucesso(true); setLoading(false);
@@ -153,14 +155,15 @@ export default function VendaRapida() {
                       const noCarrinho = carrinho.find(i => i.produto_id === p.id);
                       const qtdCarrinho = noCarrinho ? noCarrinho.quantidade : 0;
                       const disponivelReal = p.estoque_atual - qtdCarrinho;
-                      const esgotado = disponivelReal <= 0;
+                      const livre = semEstoque(p);
+                      const esgotado = !livre && disponivelReal <= 0;
                       return (
                         <button key={p.id} onClick={() => add(p)} disabled={esgotado}
                           style={{ background: esgotado ? "#111100" : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative" }}>
                           {esgotado && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>ESGOTADO</div>}
                           <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
                           <div style={{ fontSize: 13, color: esgotado ? C.muted : C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
-                          <div style={{ fontSize: 11, color: esgotado ? "#a855f7" : disponivelReal <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>disponível: {Math.max(0, disponivelReal)}</div>
+                          {!livre && <div style={{ fontSize: 11, color: esgotado ? "#a855f7" : disponivelReal <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>disponível: {Math.max(0, disponivelReal)}</div>}
                         </button>
                       );
                     })}

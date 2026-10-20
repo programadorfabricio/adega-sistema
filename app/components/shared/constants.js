@@ -13,9 +13,13 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { sc
 // Configurável por deploy, sem mexer no código.
 export const MARCA = {
   nome: process.env.NEXT_PUBLIC_NOME_ADEGA || "Adega FH",
-  logo: process.env.NEXT_PUBLIC_LOGO_URL || "", // ex: /logos/magal.png
+  // Logo: NEXT_PUBLIC_LOGO_URL ou, por padrão, public/logos/<schema>.png
+  logo: process.env.NEXT_PUBLIC_LOGO_URL || (SCHEMA !== "public" ? `/logos/${SCHEMA}.png` : ""),
   emoji: "🍺",
 };
+
+// Produtos preparados na hora (copão, drinks, combos) não controlam estoque
+export const semEstoque = (p) => p?.controla_estoque === false;
 
 const ACCENT = process.env.NEXT_PUBLIC_COR_DESTAQUE || "#f5c000";
 const hexToRgba = (hex, a) => {

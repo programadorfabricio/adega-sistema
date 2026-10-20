@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, C, base, fmt, today, hora, SCHEMA } from "./shared/constants";
+import { supabase, C, base, fmt, today, hora, SCHEMA, semEstoque } from "./shared/constants";
 
 export default function Dashboard({ setPage }) {
   const [stats, setStats] = useState({ vendasHoje: 0, totalHoje: 0, estoqueBaixo: 0, esgotados: 0, saldoMes: 0, comandasAbertas: 0 });
@@ -23,8 +23,9 @@ export default function Dashboard({ setPage }) {
         supabase.from("vendas").select("*").eq("status", "concluida").gte("created_at", seteDiasAtras.toISOString()),
       ]);
 
-      const esgotados = (produtos || []).filter(p => p.estoque_atual === 0);
-      const baixos = (produtos || []).filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
+      const controlados = (produtos || []).filter(p => !semEstoque(p));
+      const esgotados = controlados.filter(p => p.estoque_atual === 0);
+      const baixos = controlados.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
       const totalHoje = (vendas || []).reduce((a, v) => a + Number(v.total), 0);
       const entradas = (fin || []).filter(f => f.tipo === "entrada").reduce((a, f) => a + Number(f.valor), 0);
       const saidas = (fin || []).filter(f => f.tipo === "saida").reduce((a, f) => a + Number(f.valor), 0);

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, SCHEMA } from "./shared/constants";
+import { supabase, C, base, fmt, SCHEMA, semEstoque } from "./shared/constants";
 
 // ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
 function BarcodeScanner({ onFound, onClose }) {
@@ -81,7 +81,7 @@ function BarcodeScanner({ onFound, onClose }) {
 export default function Estoque() {
   const [produtos, setProdutos] = useState([]);
   const [categorias, setCategorias] = useState([]);
-  const [form, setForm] = useState({ nome: "", categoria: "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "" });
+  const [form, setForm] = useState({ nome: "", categoria: "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "", controla_estoque: true });
   const [showForm, setShowForm] = useState(false);
   const [entradaModal, setEntradaModal] = useState(null);
   const [qtdEntrada, setQtdEntrada] = useState("");
@@ -116,16 +116,17 @@ export default function Estoque() {
     return () => supabase.removeChannel(channel);
   }, [load, loadCategorias]);
 
-  const esgotados = produtos.filter(p => p.estoque_atual === 0);
-  const baixos = produtos.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
+  const controlados = produtos.filter(p => !semEstoque(p));
+  const esgotados = controlados.filter(p => p.estoque_atual === 0);
+  const baixos = controlados.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
 
   const salvar = async () => {
     if (!form.nome || !form.preco) return;
     const { data: existente } = await supabase.from("produtos").select("id").eq("nome", form.nome).eq("ativo", true).single();
     if (existente) { setErroForm(`Já existe um produto com o nome "${form.nome}".`); return; }
     setErroForm("");
-    await supabase.from("produtos").insert({ ...form, preco: Number(form.preco), estoque_atual: Number(form.estoque_atual), estoque_minimo: Number(form.estoque_minimo) });
-    setForm({ nome: "", categoria: categorias[0]?.nome || "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un" });
+    await supabase.from("produtos").insert({ ...form, preco: Number(form.preco), estoque_atual: Number(form.estoque_atual || 0), estoque_minimo: Number(form.estoque_minimo || 0) });
+    setForm({ nome: "", categoria: categorias[0]?.nome || "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "", controla_estoque: true });
     setShowForm(false); load();
   };
 
@@ -187,6 +188,12 @@ export default function Estoque() {
                 <input style={base.input} type={f.type} placeholder={f.placeholder} value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
               </div>
             ))}
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, cursor: "pointer", paddingBottom: 10 }}>
+                <input type="checkbox" checked={form.controla_estoque !== false} onChange={e => setForm({ ...form, controla_estoque: e.target.checked })} />
+                Controlar estoque <span style={{ color: C.muted, fontSize: 11 }}>(desmarque pra copão, drinks e combos)</span>
+              </label>
+            </div>
             <div>
               <label style={base.label}>Categoria</label>
               <select style={base.select} value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}>
@@ -238,6 +245,12 @@ export default function Estoque() {
                 <label style={base.label}>Estoque Mínimo</label>
                 <input style={base.input} type="number" value={editForm.estoque_minimo} onChange={e => setEditForm({ ...editForm, estoque_minimo: e.target.value })} />
               </div>
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, color: C.text, fontSize: 13, cursor: "pointer", paddingBottom: 10 }}>
+                  <input type="checkbox" checked={editForm.controla_estoque !== false} onChange={e => setEditForm({ ...editForm, controla_estoque: e.target.checked })} />
+                  Controlar estoque <span style={{ color: C.muted, fontSize: 11 }}>(desmarque pra copão, drinks e combos)</span>
+                </label>
+              </div>
               <div>
                 <label style={base.label}>Categoria</label>
                 <select style={base.select} value={editForm.categoria} onChange={e => setEditForm({ ...editForm, categoria: e.target.value })}>
@@ -269,10 +282,11 @@ export default function Estoque() {
         {/* Cards mobile */}
         <div className="estoque-cards" style={{ flexDirection: "column", gap: 10, display: "none" }}>
           {produtos.map(p => {
-            const esgotado = p.estoque_atual === 0;
-            const baixo = !esgotado && p.estoque_atual <= p.estoque_minimo;
-            const statusCor = esgotado ? "#a855f7" : baixo ? C.red : C.green;
-            const statusLabel = esgotado ? "🚫 Esgotado" : baixo ? "⚠️ Baixo" : "✅ OK";
+            const livre = semEstoque(p);
+            const esgotado = !livre && p.estoque_atual === 0;
+            const baixo = !livre && !esgotado && p.estoque_atual <= p.estoque_minimo;
+            const statusCor = livre ? C.blue : esgotado ? "#a855f7" : baixo ? C.red : C.green;
+            const statusLabel = livre ? "🍹 Sem controle" : esgotado ? "🚫 Esgotado" : baixo ? "⚠️ Baixo" : "✅ OK";
             return (
               <div key={p.id} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
@@ -285,11 +299,11 @@ export default function Estoque() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ color: C.accent, fontWeight: 800, fontSize: 16 }}>{fmt(p.preco)}</div>
-                    <div style={{ color: esgotado ? "#a855f7" : C.text, fontWeight: 700, fontSize: 13 }}>{p.estoque_atual} {p.unidade}</div>
+                    <div style={{ color: esgotado ? "#a855f7" : C.text, fontWeight: 700, fontSize: 13 }}>{livre ? "—" : `${p.estoque_atual} ${p.unidade}`}</div>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditModal(p); setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade }); }}>✏️ Editar</button>
+                  <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditModal(p); setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false }); }}>✏️ Editar</button>
                   <button style={base.btnSm()} onClick={() => setEntradaModal(p)}>+ Entrada</button>
                   <button style={base.btnSm(C.red, "#fff")} onClick={() => desativar(p.id)}>Remover</button>
                 </div>
@@ -314,21 +328,22 @@ export default function Estoque() {
           </thead>
           <tbody>
             {produtos.map(p => {
-              const esgotado = p.estoque_atual === 0;
-              const baixo = !esgotado && p.estoque_atual <= p.estoque_minimo;
-              const statusCor = esgotado ? "#a855f7" : baixo ? C.red : C.green;
-              const statusLabel = esgotado ? "🚫 Esgotado" : baixo ? "⚠️ Baixo" : "✅ OK";
+              const livre = semEstoque(p);
+              const esgotado = !livre && p.estoque_atual === 0;
+              const baixo = !livre && !esgotado && p.estoque_atual <= p.estoque_minimo;
+              const statusCor = livre ? C.blue : esgotado ? "#a855f7" : baixo ? C.red : C.green;
+              const statusLabel = livre ? "🍹 Sem controle" : esgotado ? "🚫 Esgotado" : baixo ? "⚠️ Baixo" : "✅ OK";
               return (
                 <tr key={p.id}>
                   <td style={base.td}>{p.nome}</td>
                   <td style={base.td}><span style={base.tag(C.accent)}>{p.categoria}</span></td>
                   <td style={{ ...base.td, color: C.accent, fontWeight: 700 }}>{fmt(p.preco)}</td>
-                  <td style={{ ...base.td, fontWeight: 700, color: esgotado ? "#a855f7" : C.text }}>{p.estoque_atual} {p.unidade}</td>
+                  <td style={{ ...base.td, fontWeight: 700, color: esgotado ? "#a855f7" : C.text }}>{livre ? "—" : `${p.estoque_atual} ${p.unidade}`}</td>
                   <td style={base.td}>{p.estoque_minimo}</td>
                   <td style={base.td}><span style={base.tag(statusCor)}>{statusLabel}</span></td>
                   <td style={base.td}>
                     <div style={base.row}>
-                      <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditModal(p); setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade }); }}>✏️ Editar</button>
+                      <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditModal(p); setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false }); }}>✏️ Editar</button>
                       <button style={base.btnSm()} onClick={() => setEntradaModal(p)}>+ Entrada</button>
                       <button style={base.btnSm(C.red, "#fff")} onClick={() => desativar(p.id)}>Remover</button>
                     </div>

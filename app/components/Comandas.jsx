@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, hora, SCHEMA, MARCA } from "./shared/constants";
+import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque } from "./shared/constants";
 import TrocoCalculator from "./shared/TrocoCalculator";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -288,8 +288,8 @@ export default function Comandas({ usuario }) {
     setAdicionando(true);
     atualizandoManual.current = true;
 
-    const { data: prodAtual } = await supabase.from("produtos").select("estoque_atual").eq("id", produto.id).single();
-    if (!prodAtual || prodAtual.estoque_atual <= 0) { atualizandoManual.current = false; setAdicionando(false); return; }
+    const { data: prodAtual } = await supabase.from("produtos").select("*").eq("id", produto.id).single();
+    if (!prodAtual || (!semEstoque(prodAtual) && prodAtual.estoque_atual <= 0)) { atualizandoManual.current = false; setAdicionando(false); return; }
 
     const existente = itens.find(i => i.produto_id === produto.id);
     if (existente) {
@@ -298,7 +298,7 @@ export default function Comandas({ usuario }) {
       await supabase.from("comanda_itens").insert({ comanda_id: selected.id, produto_id: produto.id, quantidade: 1, preco_unitario: produto.preco, subtotal: produto.preco });
     }
 
-    await supabase.from("produtos").update({ estoque_atual: prodAtual.estoque_atual - 1 }).eq("id", produto.id);
+    if (!semEstoque(prodAtual)) await supabase.from("produtos").update({ estoque_atual: prodAtual.estoque_atual - 1 }).eq("id", produto.id);
 
     const [{ data: itensAtualizados }, { data: produtosAtualizados }] = await Promise.all([
       supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id),
@@ -321,8 +321,8 @@ export default function Comandas({ usuario }) {
 
   const removerItem = async (item) => {
     await supabase.from("comanda_itens").delete().eq("id", item.id);
-    const { data: prod } = await supabase.from("produtos").select("estoque_atual").eq("id", item.produto_id).single();
-    if (prod) await supabase.from("produtos").update({ estoque_atual: prod.estoque_atual + item.quantidade }).eq("id", item.produto_id);
+    const { data: prod } = await supabase.from("produtos").select("*").eq("id", item.produto_id).single();
+    if (prod && !semEstoque(prod)) await supabase.from("produtos").update({ estoque_atual: prod.estoque_atual + item.quantidade }).eq("id", item.produto_id);
     const { data: itensAtualizados } = await supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id);
     setItens(itensAtualizados || []);
     const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);
@@ -629,7 +629,8 @@ export default function Comandas({ usuario }) {
                   <div style={base.sectionTitle}>📦 {cat}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     {itenscat.map(p => {
-                      const esgotado = p.estoque_atual <= 0;
+                      const livre = semEstoque(p);
+                      const esgotado = !livre && p.estoque_atual <= 0;
                       return (
                         <button key={p.id}
                           onClick={() => !esgotado && adicionarItem(p)}
@@ -638,7 +639,7 @@ export default function Comandas({ usuario }) {
                           {adicionando && ultimoAdicionado === null && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: C.accent, background: `${C.accent}20`, padding: "2px 6px", borderRadius: 4 }}>...</div>}
                           <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
                           <div style={{ fontSize: 13, color: esgotado ? C.muted : C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>
-                          <div style={{ fontSize: 11, color: esgotado ? "#a855f7" : p.estoque_atual <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>estoque: {p.estoque_atual}</div>
+                          {!livre && <div style={{ fontSize: 11, color: esgotado ? "#a855f7" : p.estoque_atual <= p.estoque_minimo ? C.red : C.muted, marginTop: 2 }}>estoque: {p.estoque_atual}</div>}
                         </button>
                       );
                     })}

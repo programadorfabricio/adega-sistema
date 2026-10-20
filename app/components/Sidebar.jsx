@@ -41,7 +41,7 @@ export default function Sidebar({ page, setPage, open, setOpen, usuario, onLogou
         <div style={{ padding: "24px 24px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             {MARCA.logo
-            ? <img src={MARCA.logo} alt={MARCA.nome} style={{ width: 44, height: 44, objectFit: "contain", borderRadius: "50%", marginBottom: 4 }} />
+            ? <img src={MARCA.logo} alt={MARCA.nome} onError={e => { e.currentTarget.style.display = "none"; }} style={{ width: 44, height: 44, objectFit: "contain", borderRadius: "50%", marginBottom: 4 }} />
             : <div style={{ fontSize: 24, marginBottom: 4 }}>{MARCA.emoji}</div>}
             <div style={{ fontSize: 18, fontWeight: 900, color: C.accent }}>{MARCA.nome}</div>
             <div style={{ fontSize: 11, color: C.muted }}>Sistema de Gestão</div>

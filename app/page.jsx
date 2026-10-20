@@ -57,7 +57,7 @@ function LoginScreen({ onLogin }) {
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           {MARCA.logo
-            ? <img src={MARCA.logo} alt={MARCA.nome} style={{ width: 96, height: 96, objectFit: "contain", borderRadius: "50%", marginBottom: 8 }} />
+            ? <img src={MARCA.logo} alt={MARCA.nome} onError={e => { e.currentTarget.style.display = "none"; }} style={{ width: 96, height: 96, objectFit: "contain", borderRadius: "50%", marginBottom: 8 }} />
             : <div style={{ fontSize: 52, marginBottom: 8 }}>{MARCA.emoji}</div>}
           <div style={{ fontSize: 24, fontWeight: 900, color: C.accent }}>{MARCA.nome}</div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Sistema de Gestão</div>
