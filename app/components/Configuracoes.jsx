@@ -52,6 +52,7 @@ export default function Configuracoes() {
 
   const salvarUsuario = async () => {
     if (!form.nome) return;
+    if (!/^\d{4}$/.test(form.pin || "")) { alert("O PIN precisa ter exatamente 4 números."); return; }
     await supabase.from("usuarios").insert(form);
     setForm({ nome: "", cargo: "atendente", pin: "" });
     setShowForm(false); loadUsuarios();
@@ -64,6 +65,7 @@ export default function Configuracoes() {
 
   const salvarEdicaoUsuario = async () => {
     if (!editUsuario) return;
+    if (!/^\d{4}$/.test(editUserForm.pin || "")) { alert("O PIN precisa ter exatamente 4 números."); return; }
     await supabase.from("usuarios").update(editUserForm).eq("id", editUsuario.id);
     setEditUsuario(null); loadUsuarios();
   };
@@ -132,7 +134,7 @@ export default function Configuracoes() {
               </div>
               <div>
                 <label style={base.label}>PIN</label>
-                <input style={base.input} value={form.pin} onChange={e => setForm({ ...form, pin: e.target.value })} placeholder="Ex: 1234" maxLength={6} />
+                <input style={base.input} value={form.pin} onChange={e => setForm({ ...form, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="4 números, ex: 1234" inputMode="numeric" maxLength={4} />
               </div>
             </div>
             <div style={base.row}>
@@ -214,7 +216,7 @@ export default function Configuracoes() {
                 </div>
                 <div>
                   <label style={base.label}>Novo PIN</label>
-                  <input style={base.input} value={editUserForm.pin} onChange={e => setEditUserForm({ ...editUserForm, pin: e.target.value })} placeholder="Digite o novo PIN" maxLength={6} />
+                  <input style={base.input} value={editUserForm.pin} onChange={e => setEditUserForm({ ...editUserForm, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="4 números" inputMode="numeric" maxLength={4} />
                 </div>
               </div>
               <div style={base.row}>
