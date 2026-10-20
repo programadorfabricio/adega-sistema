@@ -3,7 +3,26 @@ import { createClient } from "@supabase/supabase-js";
 // ─── SUPABASE ─────────────────────────────────────────────
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Cada adega usa um schema próprio no mesmo projeto Supabase.
+// Defina NEXT_PUBLIC_SUPABASE_SCHEMA no deploy de cada cliente (padrão: public).
+export const SCHEMA = process.env.NEXT_PUBLIC_SUPABASE_SCHEMA || "public";
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: SCHEMA } });
+
+// ─── MARCA DO CLIENTE ─────────────────────────────────────
+// Configurável por deploy, sem mexer no código.
+export const MARCA = {
+  nome: process.env.NEXT_PUBLIC_NOME_ADEGA || "Adega FH",
+  logo: process.env.NEXT_PUBLIC_LOGO_URL || "", // ex: /logos/magal.png
+  emoji: "🍺",
+};
+
+const ACCENT = process.env.NEXT_PUBLIC_COR_DESTAQUE || "#f5c000";
+const hexToRgba = (hex, a) => {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map(c => c + c).join("") : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
 
 // ─── CORES ────────────────────────────────────────────────
 export const C = {
@@ -11,9 +30,9 @@ export const C = {
   card: "#131200",
   card2: "#1a1800",
   border: "#2a2700",
-  accent: "#f5c000",
+  accent: ACCENT,
   accentDark: "#c49a00",
-  accentBg: "rgba(245,192,0,0.08)",
+  accentBg: hexToRgba(ACCENT, 0.08),
   green: "#22c55e",
   red: "#ef4444",
   blue: "#3b82f6",
@@ -56,7 +75,7 @@ export const base = {
     borderRadius: 16,
     padding: 20,
   },
-  btn: (bg = "#f5c000", color = "#000") => ({
+  btn: (bg = ACCENT, color = "#000") => ({
     background: bg,
     color,
     border: "none",
@@ -67,7 +86,7 @@ export const base = {
     cursor: "pointer",
     whiteSpace: "nowrap",
   }),
-  btnSm: (bg = "#f5c000", color = "#000") => ({
+  btnSm: (bg = ACCENT, color = "#000") => ({
     background: bg,
     color,
     border: "none",

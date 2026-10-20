@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, C, base, fmt, today, hora } from "./shared/constants";
+import { supabase, C, base, fmt, today, hora, SCHEMA } from "./shared/constants";
 
 export default function Dashboard({ setPage }) {
   const [stats, setStats] = useState({ vendasHoje: 0, totalHoje: 0, estoqueBaixo: 0, esgotados: 0, saldoMes: 0, comandasAbertas: 0 });
@@ -49,10 +49,10 @@ export default function Dashboard({ setPage }) {
 
     load();
     const channel = supabase.channel("dashboard-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "vendas" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "financeiro" }, load)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "vendas" }, load)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "comandas" }, load)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, load)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "financeiro" }, load)
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, []);

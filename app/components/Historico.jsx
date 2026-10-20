@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase, C, base, fmt, today, dataHora } from "./shared/constants";
+import { supabase, C, base, fmt, today, dataHora, SCHEMA } from "./shared/constants";
 
 export default function Historico() {
   const [vendas, setVendas] = useState([]);
@@ -29,8 +29,8 @@ export default function Historico() {
     loadVendas();
     loadComandasFechadas();
     const channel = supabase.channel("historico-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "vendas" }, loadVendas)
-      .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, loadComandasFechadas)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "vendas" }, loadVendas)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "comandas" }, loadComandasFechadas)
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, [loadVendas, loadComandasFechadas]);

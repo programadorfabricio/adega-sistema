@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt } from "./shared/constants";
+import { supabase, C, base, fmt, SCHEMA } from "./shared/constants";
 import TrocoCalculator from "./shared/TrocoCalculator";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -52,7 +52,7 @@ export default function VendaRapida() {
   useEffect(() => {
     loadProdutos();
     const channel = supabase.channel("venda-rapida-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, loadProdutos)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, loadProdutos)
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, [loadProdutos]);

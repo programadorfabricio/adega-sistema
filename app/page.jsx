@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, C, base, PAGES } from "./components/shared/constants";
+import { supabase, C, base, PAGES, MARCA } from "./components/shared/constants";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import VendaRapida from "./components/VendaRapida";
@@ -56,8 +56,10 @@ function LoginScreen({ onLogin }) {
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{ fontSize: 52, marginBottom: 8 }}>🍺</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: C.accent }}>Império Bebidas</div>
+          {MARCA.logo
+            ? <img src={MARCA.logo} alt={MARCA.nome} style={{ width: 96, height: 96, objectFit: "contain", borderRadius: "50%", marginBottom: 8 }} />
+            : <div style={{ fontSize: 52, marginBottom: 8 }}>{MARCA.emoji}</div>}
+          <div style={{ fontSize: 24, fontWeight: 900, color: C.accent }}>{MARCA.nome}</div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Sistema de Gestão</div>
         </div>
 

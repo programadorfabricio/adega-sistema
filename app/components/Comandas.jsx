@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, hora } from "./shared/constants";
+import { supabase, C, base, fmt, hora, SCHEMA, MARCA } from "./shared/constants";
 import TrocoCalculator from "./shared/TrocoCalculator";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -236,10 +236,10 @@ export default function Comandas({ usuario }) {
     loadProdutos();
 
     const channel = supabase.channel("comandas-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "comandas" }, () => {
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "comandas" }, () => {
         if (!atualizandoManual.current) loadComandas();
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "comanda_itens" }, () => {
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "comanda_itens" }, () => {
         if (atualizandoManual.current) return;
         loadComandas();
         setSelected(prev => {
@@ -250,7 +250,7 @@ export default function Comandas({ usuario }) {
           return prev;
         });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, () => {
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, () => {
         if (!atualizandoManual.current) loadProdutos();
       })
       .subscribe();
@@ -383,7 +383,7 @@ export default function Comandas({ usuario }) {
         @media print { body { width: 100%; } }
       </style></head>
       <body>
-        <div class="center bold" style="font-size:16px; margin-bottom:4px;">🍺 Império Bebidas</div>
+        <div class="center bold" style="font-size:16px; margin-bottom:4px;">${MARCA.emoji} ${MARCA.nome}</div>
         <div class="center" style="font-size:11px; margin-bottom:8px;">Sistema de Gestão</div>
         <div class="linha"></div>
         <div class="row"><span>Cliente:</span><span class="bold">${selected.nome_cliente}</span></div>

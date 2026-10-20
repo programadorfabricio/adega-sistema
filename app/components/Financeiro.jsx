@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase, C, base, fmt, today } from "./shared/constants";
+import { supabase, C, base, fmt, today, SCHEMA } from "./shared/constants";
 import MonthPicker from "./shared/MonthPicker";
 
 export default function Financeiro() {
@@ -21,7 +21,7 @@ export default function Financeiro() {
   useEffect(() => {
     load();
     const channel = supabase.channel("financeiro-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "financeiro" }, load)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "financeiro" }, load)
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, [load]);

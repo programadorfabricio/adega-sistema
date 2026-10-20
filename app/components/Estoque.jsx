@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt } from "./shared/constants";
+import { supabase, C, base, fmt, SCHEMA } from "./shared/constants";
 
 // ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
 function BarcodeScanner({ onFound, onClose }) {
@@ -110,8 +110,8 @@ export default function Estoque() {
     load();
     loadCategorias();
     const channel = supabase.channel("estoque-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "categorias" }, loadCategorias)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, load)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "categorias" }, loadCategorias)
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, [load, loadCategorias]);
