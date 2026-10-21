@@ -89,6 +89,9 @@ export default function Estoque() {
   const [editForm, setEditForm] = useState({});
   const [erroForm, setErroForm] = useState("");
   const [showScanner, setShowScanner] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [filtroCat, setFiltroCat] = useState("todas");
+  const [filtroStatus, setFiltroStatus] = useState("todos");
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
@@ -119,6 +122,17 @@ export default function Estoque() {
   const controlados = produtos.filter(p => !semEstoque(p));
   const esgotados = controlados.filter(p => p.estoque_atual === 0);
   const baixos = controlados.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
+
+  const semAcento = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const termo = semAcento(busca.trim());
+  const lista = produtos.filter(p => {
+    if (termo && !semAcento(p.nome).includes(termo) && !String(p.codigo_barras || "").includes(busca.trim())) return false;
+    if (filtroCat !== "todas" && p.categoria !== filtroCat) return false;
+    if (filtroStatus === "esgotado") return !semEstoque(p) && p.estoque_atual === 0;
+    if (filtroStatus === "baixo") return !semEstoque(p) && p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo;
+    if (filtroStatus === "ok") return semEstoque(p) || p.estoque_atual > p.estoque_minimo;
+    return true;
+  });
 
   const salvar = async () => {
     if (!form.nome || !form.preco) return;
@@ -274,6 +288,25 @@ export default function Estoque() {
 
       {/* Tabela desktop / Cards mobile */}
       <div style={base.card}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+          <input style={{ ...base.input, flex: 2, minWidth: 200 }} placeholder="🔍 Buscar produto pelo nome ou código..." value={busca} onChange={e => setBusca(e.target.value)} />
+          <select style={{ ...base.select, flex: 1, minWidth: 150 }} value={filtroCat} onChange={e => setFiltroCat(e.target.value)}>
+            <option value="todas" style={optionStyle}>Todas as categorias</option>
+            {[...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort().map(c => <option key={c} value={c} style={optionStyle}>{c}</option>)}
+          </select>
+          <select style={{ ...base.select, flex: 1, minWidth: 150 }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+            <option value="todos" style={optionStyle}>Todos os status</option>
+            <option value="esgotado" style={optionStyle}>🚫 Esgotados</option>
+            <option value="baixo" style={optionStyle}>⚠️ Estoque baixo</option>
+            <option value="ok" style={optionStyle}>✅ OK</option>
+          </select>
+        </div>
+        {(busca || filtroCat !== "todas" || filtroStatus !== "todos") && (
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+            {lista.length} de {produtos.length} produtos ·{" "}
+            <button onClick={() => { setBusca(""); setFiltroCat("todas"); setFiltroStatus("todos"); }} style={{ background: "transparent", border: "none", color: C.accent, cursor: "pointer", fontSize: 12, padding: 0 }}>limpar filtros</button>
+          </div>
+        )}
         <style>{`
           @media (max-width: 768px) { .estoque-table { display: none !important; } .estoque-cards { display: flex !important; } }
           @media (min-width: 769px) { .estoque-cards { display: none !important; } }
@@ -281,7 +314,7 @@ export default function Estoque() {
 
         {/* Cards mobile */}
         <div className="estoque-cards" style={{ flexDirection: "column", gap: 10, display: "none" }}>
-          {produtos.map(p => {
+          {lista.map(p => {
             const livre = semEstoque(p);
             const esgotado = !livre && p.estoque_atual === 0;
             const baixo = !livre && !esgotado && p.estoque_atual <= p.estoque_minimo;
@@ -310,7 +343,7 @@ export default function Estoque() {
               </div>
             );
           })}
-          {produtos.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 32, fontSize: 13 }}>Nenhum produto cadastrado</div>}
+          {lista.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 32, fontSize: 13 }}>{produtos.length ? "Nenhum produto encontrado" : "Nenhum produto cadastrado"}</div>}
         </div>
 
         {/* Tabela desktop */}
@@ -327,7 +360,7 @@ export default function Estoque() {
             </tr>
           </thead>
           <tbody>
-            {produtos.map(p => {
+            {lista.map(p => {
               const livre = semEstoque(p);
               const esgotado = !livre && p.estoque_atual === 0;
               const baixo = !livre && !esgotado && p.estoque_atual <= p.estoque_minimo;
@@ -351,7 +384,7 @@ export default function Estoque() {
                 </tr>
               );
             })}
-            {produtos.length === 0 && <tr><td colSpan={7} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum produto cadastrado</td></tr>}
+            {lista.length === 0 && <tr><td colSpan={7} style={{ ...base.td, color: C.muted, textAlign: "center" }}>{produtos.length ? "Nenhum produto encontrado" : "Nenhum produto cadastrado"}</td></tr>}
           </tbody>
         </table>
       </div>
