@@ -11,7 +11,7 @@ drop table if exists cfg, garrafas, fardos, receitas;
 create temp table cfg (chave text primary key, valor numeric);
 insert into cfg values
   ('dose_copao_ml',        150),   -- ml de bebida em cada copão
-  ('energetico_copao_ml',  350),   -- ml de energético (Energético 2L) em cada copão
+  ('energetico_copao_ml',  350),   -- copo de 700 ml − 150 bebida − 200 gelo = 350 ml de energético
   ('garrafa_energetico_ml',2000),  -- tamanho do Energético 2L
   ('garrafa_padrao_ml',    1000);  -- tamanho das garrafas (1000 = 1 L, 750 = 750 ml)
 
@@ -68,15 +68,15 @@ insert into receitas values
   ('Combo Black Blend',               'Whisky Black Blend garrafa',    'garrafa', false, 0),
   ('Combo Passaporte',                'Whisky Passaporte garrafa',     'garrafa', false, 0),
   ('Combo Cavalo Branco',             'Whisky Cavalo Branco garrafa',  'garrafa', false, 0),
-  ('Combo Red Label + Red Bull',      'Whisky Red Label garrafa',      'garrafa', false, 0),
+  ('Combo Red Label + Red Bull',      'Whisky Red Label garrafa',      'garrafa', false, 4),
   ('Combo Jack Daniel''s + Red Bull', 'Whisky Jack Daniel''s garrafa', 'garrafa', false, 0),
   ('Combo Gin QN',                    'Gin QN garrafa',                'garrafa', false, 0),
-  ('Combo Beefeater + Red Bull',      'Gin Beefeater garrafa',         'garrafa', false, 0),
+  ('Combo Beefeater + Red Bull',      'Gin Beefeater garrafa',         'garrafa', false, 4),
   ('Combo Smirnoff',                  'Vodka Smirnoff garrafa',        'garrafa', false, 0),
-  ('Combo Absolut + Red Bull',        'Vodka Absolut garrafa',         'garrafa', false, 0),
-  ('Combo Cîroc + Red Bull',          'Vodka Cîroc garrafa',           'garrafa', false, 0),
-  ('Combo Licor 43 + Red Bull',       'Licor 43 garrafa',              'garrafa', false, 0);
--- Combos "+ Red Bull": quantas latas vêm no combo? Troque o 0 da última coluna (ex.: 4).
+  ('Combo Absolut + Red Bull',        'Vodka Absolut garrafa',         'garrafa', false, 4),
+  ('Combo Cîroc + Red Bull',          'Vodka Cîroc garrafa',           'garrafa', false, 4),
+  ('Combo Licor 43 + Red Bull',       'Licor 43 garrafa',              'garrafa', false, 4);
+-- Combos "+ Red Bull" levam 4 latas (confirmado pelo Magal).
 
 -- PARTE 2 — NÃO PRECISA MEXER ---------------------------------
 -- Garrafas: volume em ml
