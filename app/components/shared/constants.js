@@ -15,7 +15,7 @@ export const MARCA = {
   nome: process.env.NEXT_PUBLIC_NOME_ADEGA || "Adega FH",
   // Logo: NEXT_PUBLIC_LOGO_URL ou, por padrão, public/logos/<schema>.png
   logo: process.env.NEXT_PUBLIC_LOGO_URL || (SCHEMA !== "public" ? `/logos/${SCHEMA}.png` : ""),
-  emoji: "🍺",
+  emoji: process.env.NEXT_PUBLIC_EMOJI || "🍺",
 };
 
 // Produtos preparados na hora (copão, drinks, combos) não controlam estoque
