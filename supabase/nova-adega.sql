@@ -27,6 +27,9 @@ begin
     execute format('create table if not exists %I.%I (like public.%I including all)', novo, t, t);
   end loop;
 
+  -- Categorias vêm da tabela de categorias (Configurações), não de uma lista fixa
+  execute format('alter table %I.produtos drop constraint if exists produtos_categoria_check', novo);
+
   -- 2. Chaves estrangeiras (necessárias para os selects com join, ex: comanda_itens(*, produtos(...)))
   for fk in
     select c.conname, rel.relname as tabela,

@@ -7,6 +7,10 @@
 alter table public.produtos add column if not exists controla_estoque boolean not null default true;
 alter table magal.produtos  add column if not exists controla_estoque boolean not null default true;
 
+-- Categorias vêm da tabela de categorias, não de uma lista fixa
+alter table public.produtos drop constraint if exists produtos_categoria_check;
+alter table magal.produtos  drop constraint if exists produtos_categoria_check;
+
 -- 2. Categoria nova
 insert into magal.categorias (nome)
 select 'combos' where not exists (select 1 from magal.categorias where nome = 'combos');
