@@ -11,6 +11,7 @@ import Relatorios from "./components/Relatorios";
 import Configuracoes from "./components/Configuracoes";
 import Comandas from "./components/Comandas";
 import Delivery from "./components/Delivery";
+import { useAssinatura, FaixaMensalidade, BloqueioMensalidade } from "./components/shared/AvisoMensalidade";
 
 // ─── TELA DE LOGIN ───────────────────────────────────────
 function LoginScreen({ onLogin }) {
@@ -129,6 +130,7 @@ export default function App() {
   const [usuario, setUsuario] = useState(null);
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const assinatura = useAssinatura();
 
   const handleLogin = (user) => {
     setUsuario(user);
@@ -154,7 +156,7 @@ export default function App() {
     }
   };
 
-  if (!usuario) return <LoginScreen onLogin={handleLogin} />;
+  if (!usuario) return <><LoginScreen onLogin={handleLogin} /><BloqueioMensalidade info={assinatura} /></>;
 
   return (
     <div style={{ display: "flex", background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Outfit', sans-serif" }}>
@@ -168,6 +170,7 @@ export default function App() {
         * { box-sizing: border-box; }
       `}</style>
 
+      <BloqueioMensalidade info={assinatura} />
       <Sidebar page={page} setPage={setPage} open={sidebarOpen} setOpen={setSidebarOpen} usuario={usuario} onLogout={handleLogout} />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -196,6 +199,7 @@ export default function App() {
             }
             .page-anim { animation: fadeSlide 0.22s ease; }
           `}</style>
+          {assinatura && <FaixaMensalidade key={assinatura.vencimento} info={assinatura} />}
           <div key={page} className="page-anim">
             {renderPage()}
           </div>
