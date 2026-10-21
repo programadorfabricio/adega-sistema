@@ -69,7 +69,7 @@ insert into receitas values
   ('Combo Passaporte',                'Whisky Passaporte garrafa',     'garrafa', false, 0),
   ('Combo Cavalo Branco',             'Whisky Cavalo Branco garrafa',  'garrafa', false, 0),
   ('Combo Red Label + Red Bull',      'Whisky Red Label garrafa',      'garrafa', false, 4),
-  ('Combo Jack Daniel''s + Red Bull', 'Whisky Jack Daniel''s garrafa', 'garrafa', false, 0),
+  ('Combo Jack Daniel''s + Red Bull', 'Whisky Jack Daniel''s garrafa', 'garrafa', false, 4),
   ('Combo Gin QN',                    'Gin QN garrafa',                'garrafa', false, 0),
   ('Combo Beefeater + Red Bull',      'Gin Beefeater garrafa',         'garrafa', false, 4),
   ('Combo Smirnoff',                  'Vodka Smirnoff garrafa',        'garrafa', false, 0),
