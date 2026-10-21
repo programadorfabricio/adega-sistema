@@ -14,6 +14,7 @@ export default function Sidebar({ page, setPage, open, setOpen, usuario, onLogou
         .sidebar { width: 260px; position: relative; left: 0; }
         .topbar { display: none; }
         .overlay { display: none; }
+        .sidebar-fechar { display: none; }
         * { box-sizing: border-box; }
         @media (max-width: 768px) {
           .sidebar {
@@ -25,6 +26,7 @@ export default function Sidebar({ page, setPage, open, setOpen, usuario, onLogou
           }
           .overlay { display: ${open ? "block" : "none"}; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 40; }
           .topbar { display: flex !important; }
+          .sidebar-fechar { display: block; }
           .main-content { padding: 12px !important; padding-top: 68px !important; }
           .grid-2col, .grid-3col, .grid-4col, .grid-5col { grid-template-columns: 1fr !important; }
           .grid-auto { grid-template-columns: 1fr 1fr !important; }
@@ -45,7 +47,7 @@ export default function Sidebar({ page, setPage, open, setOpen, usuario, onLogou
             <div style={{ fontSize: 18, fontWeight: 900, color: C.accent }}>{MARCA.nome}</div>
             <div style={{ fontSize: 11, color: C.muted }}>Sistema de Gestão</div>
           </div>
-          <button onClick={() => setOpen(false)} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 20, cursor: "pointer" }}>✕</button>
+          <button className="sidebar-fechar" aria-label="Fechar menu" onClick={() => setOpen(false)} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 20, cursor: "pointer" }}>✕</button>
         </div>
 
         {/* Usuário logado */}
