@@ -181,7 +181,9 @@ export default function App() {
             <span>{pageLabel?.icon}</span>
             <span style={{ fontWeight: 800, color: C.text, fontSize: 15 }}>{pageLabel?.label}</span>
           </div>
-          <span style={{ fontSize: 20 }}>🍺</span>
+          {MARCA.logo
+            ? <img src={MARCA.logo} alt={MARCA.nome} onError={e => { e.currentTarget.style.display = "none"; }} style={{ width: 34, height: 34, objectFit: "contain", borderRadius: "50%" }} />
+            : <span style={{ fontSize: 20 }}>{MARCA.emoji}</span>}
         </div>
 
         <div className="main-content" style={{ flex: 1, padding: 28, overflowY: "auto" }}>
