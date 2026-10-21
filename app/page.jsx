@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, C, base, PAGES, MARCA } from "./components/shared/constants";
+import { supabase, C, base, PAGES, MARCA, PAGINAS_OCULTAS } from "./components/shared/constants";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import VendaRapida from "./components/VendaRapida";
@@ -12,6 +12,7 @@ import Configuracoes from "./components/Configuracoes";
 import Comandas from "./components/Comandas";
 import Delivery from "./components/Delivery";
 import Caixa from "./components/Caixa";
+import LogoMarca from "./components/shared/LogoMarca";
 import { useAssinatura, FaixaMensalidade, BloqueioMensalidade } from "./components/shared/AvisoMensalidade";
 
 // ─── TELA DE LOGIN ───────────────────────────────────────
@@ -59,9 +60,7 @@ function LoginScreen({ onLogin }) {
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          {MARCA.logo
-            ? <img src={MARCA.logo} alt={MARCA.nome} onError={e => { e.currentTarget.style.display = "none"; }} style={{ width: 96, height: 96, objectFit: "contain", borderRadius: "50%", marginBottom: 8 }} />
-            : <div style={{ fontSize: 52, marginBottom: 8 }}>{MARCA.emoji}</div>}
+          <LogoMarca size={96} emojiSize={52} marginBottom={8} />
           <div style={{ fontSize: 24, fontWeight: 900, color: C.accent }}>{MARCA.nome}</div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Sistema de Gestão</div>
         </div>
@@ -135,7 +134,7 @@ export default function App() {
 
   const handleLogin = (user) => {
     setUsuario(user);
-    const primeira = PAGES.find(p => p.cargos.includes(user.cargo));
+    const primeira = PAGES.find(p => p.cargos.includes(user.cargo) && !PAGINAS_OCULTAS.includes(p.id));
     setPage(primeira?.id || "dashboard");
   };
 
@@ -188,9 +187,7 @@ export default function App() {
             <span>{pageLabel?.icon}</span>
             <span style={{ fontWeight: 800, color: C.text, fontSize: 15 }}>{pageLabel?.label}</span>
           </div>
-          {MARCA.logo
-            ? <img src={MARCA.logo} alt={MARCA.nome} onError={e => { e.currentTarget.style.display = "none"; }} style={{ width: 34, height: 34, objectFit: "contain", borderRadius: "50%" }} />
-            : <span style={{ fontSize: 20 }}>{MARCA.emoji}</span>}
+          <LogoMarca size={34} emojiSize={20} inline />
         </div>
 
         <div className="main-content" style={{ flex: 1, padding: 28, overflowY: "auto" }}>

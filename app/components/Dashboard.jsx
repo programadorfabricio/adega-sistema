@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, C, base, fmt, today, hora, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
+import { supabase, C, base, fmt, today, hora, SCHEMA, semEstoque, resumoNomes, PAGINAS_OCULTAS } from "./shared/constants";
 
 export default function Dashboard({ setPage }) {
   const [stats, setStats] = useState({ vendasHoje: 0, totalHoje: 0, estoqueBaixo: 0, esgotados: 0, saldoMes: 0, comandasAbertas: 0 });
@@ -30,7 +30,8 @@ export default function Dashboard({ setPage }) {
       const entradas = (fin || []).filter(f => f.tipo === "entrada").reduce((a, f) => a + Number(f.valor), 0);
       const saidas = (fin || []).filter(f => f.tipo === "saida").reduce((a, f) => a + Number(f.valor), 0);
 
-      setStats({ vendasHoje: vendas?.length || 0, totalHoje, estoqueBaixo: baixos.length, esgotados: esgotados.length, saldoMes: entradas - saidas, comandasAbertas: comandas?.length || 0 });
+      const { data: entregasAbertas } = await supabase.from("entregas").select("id").in("status", ["preparando", "saiu"]);
+      setStats({ entregasAbertas: entregasAbertas?.length || 0, vendasHoje: vendas?.length || 0, totalHoje, estoqueBaixo: baixos.length, esgotados: esgotados.length, saldoMes: entradas - saidas, comandasAbertas: comandas?.length || 0 });
       setRecentes(ultimasVendas || []);
       setAlertas([...esgotados, ...baixos]);
 
@@ -54,12 +55,15 @@ export default function Dashboard({ setPage }) {
       .on("postgres_changes", { event: "*", schema: SCHEMA, table: "comandas" }, load)
       .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, load)
       .on("postgres_changes", { event: "*", schema: SCHEMA, table: "financeiro" }, load)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "entregas" }, load)
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, []);
 
   const cards = [
-    { label: "Comandas Abertas", val: stats.comandasAbertas, color: C.accent, icon: "🍺", action: () => setPage("comandas") },
+    PAGINAS_OCULTAS.includes("comandas")
+      ? { label: "Entregas em andamento", val: stats.entregasAbertas || 0, color: C.accent, icon: "🛵", action: () => setPage("delivery") }
+      : { label: "Comandas Abertas", val: stats.comandasAbertas, color: C.accent, icon: "🍺", action: () => setPage("comandas") },
     { label: "Vendas Hoje", val: stats.vendasHoje, color: C.blue, icon: "⚡" },
     { label: "Faturamento Hoje", val: fmt(stats.totalHoje), color: C.green, icon: "💵" },
     { label: "Esgotados", val: stats.esgotados, color: stats.esgotados > 0 ? "#a855f7" : C.green, icon: "🚫", action: () => setPage("estoque") },
@@ -142,7 +146,7 @@ export default function Dashboard({ setPage }) {
             { label: "Financeiro", icon: "💰", page: "financeiro", cor: C.green },
             { label: "Relatórios", icon: "📈", page: "relatorios", cor: "#a855f7" },
             { label: "Configurações", icon: "⚙️", page: "configuracoes", cor: C.muted },
-          ].map(item => (
+          ].filter(item => !PAGINAS_OCULTAS.includes(item.page)).map(item => (
             <button key={item.page} onClick={() => setPage(item.page)} style={{
               display: "flex", alignItems: "center", gap: 8,
               background: C.card2, border: `1px solid ${C.border}`,

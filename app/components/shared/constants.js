@@ -18,6 +18,9 @@ export const MARCA = {
   emoji: process.env.NEXT_PUBLIC_EMOJI || "🍺",
 };
 
+// Telas escondidas neste cliente, ex: NEXT_PUBLIC_OCULTAR_PAGINAS=comandas
+export const PAGINAS_OCULTAS = (process.env.NEXT_PUBLIC_OCULTAR_PAGINAS || "").split(",").map(s => s.trim()).filter(Boolean);
+
 // Produtos preparados na hora (copão, drinks, combos) não controlam estoque
 export const semEstoque = (p) => p?.controla_estoque === false;
 

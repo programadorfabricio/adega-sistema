@@ -1,8 +1,9 @@
 "use client";
-import { C, base, PAGES, MARCA } from "./shared/constants";
+import { C, base, PAGES, MARCA, PAGINAS_OCULTAS } from "./shared/constants";
+import LogoMarca from "./shared/LogoMarca";
 
 export default function Sidebar({ page, setPage, open, setOpen, usuario, onLogout }) {
-  const pages = PAGES.filter(p => p.cargos.includes(usuario?.cargo));
+  const pages = PAGES.filter(p => p.cargos.includes(usuario?.cargo) && !PAGINAS_OCULTAS.includes(p.id));
   const groups = [...new Set(pages.map(p => p.group))];
   const navigate = (id) => { setPage(id); setOpen(false); };
   const cargoCor = { admin: C.accent, gerente: C.blue, atendente: C.green };
@@ -40,9 +41,7 @@ export default function Sidebar({ page, setPage, open, setOpen, usuario, onLogou
         {/* Logo */}
         <div style={{ padding: "24px 24px 20px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            {MARCA.logo
-            ? <img src={MARCA.logo} alt={MARCA.nome} onError={e => { e.currentTarget.style.display = "none"; }} style={{ width: 44, height: 44, objectFit: "contain", borderRadius: "50%", marginBottom: 4 }} />
-            : <div style={{ fontSize: 24, marginBottom: 4 }}>{MARCA.emoji}</div>}
+            <LogoMarca size={44} emojiSize={24} marginBottom={4} />
             <div style={{ fontSize: 18, fontWeight: 900, color: C.accent }}>{MARCA.nome}</div>
             <div style={{ fontSize: 11, color: C.muted }}>Sistema de Gestão</div>
           </div>
