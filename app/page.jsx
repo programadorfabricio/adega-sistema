@@ -10,6 +10,7 @@ import Historico from "./components/Historico";
 import Relatorios from "./components/Relatorios";
 import Configuracoes from "./components/Configuracoes";
 import Comandas from "./components/Comandas";
+import Delivery from "./components/Delivery";
 
 // ─── TELA DE LOGIN ───────────────────────────────────────
 function LoginScreen({ onLogin }) {
@@ -143,6 +144,7 @@ export default function App() {
       case "dashboard": return <Dashboard setPage={setPage} />;
       case "comandas": return <Comandas usuario={usuario} />;
       case "venda": return <VendaRapida />;
+      case "delivery": return <Delivery />;
       case "estoque": return <Estoque />;
       case "financeiro": return <Financeiro />;
       case "historico": return <Historico />;

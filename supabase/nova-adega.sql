@@ -15,7 +15,8 @@ declare
   novo   text := 'magal';   -- <<< NOME DO SCHEMA DO CLIENTE
   tabelas text[] := array[
     'categorias','produtos','estoque_movimentacoes','vendas','venda_itens',
-    'comandas','comanda_itens','financeiro','usuarios','configuracoes'
+    'comandas','comanda_itens','financeiro','usuarios','configuracoes',
+    'bairros','entregas'   -- delivery (rode supabase/delivery.sql uma vez antes)
   ];
   t   text;
   fk  record;

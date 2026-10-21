@@ -36,7 +36,36 @@ export default function Configuracoes() {
     setCategorias(data || []);
   }, []);
 
-  useEffect(() => { loadUsuarios(); loadConfig(); loadCategorias(); }, [loadUsuarios, loadConfig, loadCategorias]);
+  const [bairros, setBairros] = useState([]);
+  const [bairrosAtivo, setBairrosAtivo] = useState(true);
+  const [novoBairro, setNovoBairro] = useState({ nome: "", taxa: "" });
+
+  const loadBairros = useCallback(async () => {
+    const { data, error } = await supabase.from("bairros").select("*").order("nome");
+    setBairrosAtivo(!error);
+    setBairros(data || []);
+  }, []);
+
+  useEffect(() => { loadUsuarios(); loadConfig(); loadCategorias(); loadBairros(); }, [loadUsuarios, loadConfig, loadCategorias, loadBairros]);
+
+  const adicionarBairro = async () => {
+    if (!novoBairro.nome.trim()) return;
+    await supabase.from("bairros").insert({ nome: novoBairro.nome.trim(), taxa: Number(String(novoBairro.taxa).replace(",", ".") || 0) });
+    setNovoBairro({ nome: "", taxa: "" });
+    loadBairros();
+  };
+
+  const alterarTaxa = async (b, valor) => {
+    const taxa = Number(String(valor).replace(",", "."));
+    if (Number.isNaN(taxa) || taxa === Number(b.taxa)) return;
+    await supabase.from("bairros").update({ taxa }).eq("id", b.id);
+    loadBairros();
+  };
+
+  const removerBairro = async (id) => {
+    await supabase.from("bairros").delete().eq("id", id);
+    loadBairros();
+  };
 
   const adicionarCategoria = async () => {
     if (!novaCategoria.trim()) return;
@@ -227,6 +256,29 @@ export default function Configuracoes() {
           </div>
         )}
       </div>
+
+      {/* Bairros e taxas de entrega */}
+      {bairrosAtivo && (
+        <div style={{ ...base.card, marginTop: 20 }}>
+          <div style={base.sectionTitle}>🛵 Bairros e taxas de entrega</div>
+          <div style={{ ...base.row, marginBottom: 16, flexWrap: "wrap" }}>
+            <input style={{ ...base.input, flex: 2, minWidth: 160 }} value={novoBairro.nome} onChange={e => setNovoBairro({ ...novoBairro, nome: e.target.value })} placeholder="Bairro, ex: Potiguara" onKeyDown={e => e.key === "Enter" && adicionarBairro()} />
+            <input style={{ ...base.input, flex: 1, minWidth: 100 }} type="number" inputMode="decimal" value={novoBairro.taxa} onChange={e => setNovoBairro({ ...novoBairro, taxa: e.target.value })} placeholder="Taxa R$" onKeyDown={e => e.key === "Enter" && adicionarBairro()} />
+            <button style={base.btn()} onClick={adicionarBairro}>+ Adicionar</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {bairros.map(b => (
+              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px" }}>
+                <span style={{ flex: 1, fontSize: 13, color: C.text, fontWeight: 600 }}>{b.nome}</span>
+                <span style={{ fontSize: 12, color: C.muted }}>R$</span>
+                <input style={{ ...base.input, width: 90, padding: "6px 10px" }} type="number" inputMode="decimal" defaultValue={b.taxa} onBlur={e => alterarTaxa(b, e.target.value)} />
+                <button onClick={() => removerBairro(b.id)} style={{ background: "transparent", border: "none", color: C.muted, cursor: "pointer", fontSize: 14 }}>✕</button>
+              </div>
+            ))}
+            {bairros.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhum bairro cadastrado. Sem bairro, a taxa é digitada em cada pedido.</div>}
+          </div>
+        </div>
+      )}
 
       {/* Categorias */}
       <div style={{ ...base.card, marginTop: 20 }}>

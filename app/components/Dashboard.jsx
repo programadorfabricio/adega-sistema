@@ -136,6 +136,7 @@ export default function Dashboard({ setPage }) {
           {[
             { label: "Comandas", icon: "🍺", page: "comandas", cor: C.accent },
             { label: "Venda Rápida", icon: "⚡", page: "venda", cor: C.blue },
+            { label: "Delivery", icon: "🛵", page: "delivery", cor: C.blue },
             { label: "Estoque", icon: "📦", page: "estoque", cor: "#f97316" },
             { label: "Financeiro", icon: "💰", page: "financeiro", cor: C.green },
             { label: "Relatórios", icon: "📈", page: "relatorios", cor: "#a855f7" },
