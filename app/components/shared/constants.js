@@ -190,6 +190,7 @@ export const PAGES = [
   { id: "comandas", label: "Comandas", icon: "🍺", group: "PRINCIPAL", cargos: ["admin", "gerente", "atendente"] },
   { id: "venda", label: "Venda Rápida", icon: "⚡", group: "PRINCIPAL", cargos: ["admin", "gerente", "atendente"] },
   { id: "delivery", label: "Delivery", icon: "🛵", group: "PRINCIPAL", cargos: ["admin", "gerente", "atendente"] },
+  { id: "caixa", label: "Caixa", icon: "🧾", group: "PRINCIPAL", cargos: ["admin", "gerente", "atendente"] },
   { id: "estoque", label: "Estoque", icon: "📦", group: "GESTÃO", cargos: ["admin", "gerente"] },
   { id: "financeiro", label: "Financeiro", icon: "💰", group: "GESTÃO", cargos: ["admin", "gerente"] },
   { id: "historico", label: "Histórico", icon: "📋", group: "GESTÃO", cargos: ["admin", "gerente"] },

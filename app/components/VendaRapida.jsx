@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, SCHEMA, semEstoque } from "./shared/constants";
 import TrocoCalculator from "./shared/TrocoCalculator";
+import { useCaixaAberto } from "./Caixa";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
 function useBarcodeListener(onScan) {
@@ -34,7 +35,8 @@ function useBarcodeListener(onScan) {
   }, [onScan]);
 }
 
-export default function VendaRapida() {
+export default function VendaRapida({ setPage }) {
+  const caixaEstado = useCaixaAberto();
   const [produtos, setProdutos] = useState([]);
   const [carrinho, setCarrinho] = useState([]);
   const [busca, setBusca] = useState("");
@@ -123,6 +125,12 @@ export default function VendaRapida() {
         </div>
       </div>
 
+      {caixaEstado === "fechado" && (
+        <div style={{ ...base.alert(C.accent), justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <span>🔒 O caixa está fechado. Abra o caixa pra conferir o dinheiro no fim do dia.</span>
+          {setPage && <button style={base.btnSm()} onClick={() => setPage("caixa")}>Abrir caixa</button>}
+        </div>
+      )}
       {sucesso && <div style={{ ...base.alert(C.green), marginBottom: 16 }}>✅ Venda registrada!</div>}
       {scanFeedback && (
         <div style={{ ...base.alert(scanFeedback.tipo === "erro" ? C.red : C.green), marginBottom: 16 }}>
