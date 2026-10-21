@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
-import { temVolume, textoGarrafa } from "./shared/estoque";
+import { temVolume, textoGarrafa, unidadeFracao } from "./shared/estoque";
 
 // ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
 function BarcodeScanner({ onFound, onClose }) {
@@ -156,7 +156,7 @@ export default function Estoque() {
 
   const abrirEdicao = async (p) => {
     setEditModal(p);
-    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}) });
+    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}) });
     setReceita([]);
     const { data, error } = await supabase.from("produto_insumos").select("insumo_id, quantidade").eq("produto_id", p.id);
     setTemReceitas(!error);
@@ -299,25 +299,33 @@ export default function Estoque() {
               </div>
               {"volume_ml" in editForm && editForm.controla_estoque !== false && (
                 <div style={{ gridColumn: "1 / -1" }}>
-                  <label style={base.label}>Volume da garrafa (ml) <span style={{ color: C.muted }}>· preencha se ela é usada em dose (copão, drink)</span></label>
-                  <input style={base.input} type="number" placeholder="ex.: 1000" value={editForm.volume_ml} onChange={e => setEditForm({ ...editForm, volume_ml: e.target.value })} />
+                  <label style={base.label}>Vende fracionado? <span style={{ color: C.muted }}>· garrafa usada em dose (ex.: 1000 ml) ou fardo vendido em latas (ex.: 12 un)</span></label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input style={{ ...base.input, flex: 2 }} type="number" placeholder={editForm.fracao_unidade === "un" ? "ex.: 12" : "ex.: 1000"} value={editForm.volume_ml} onChange={e => setEditForm({ ...editForm, volume_ml: e.target.value })} />
+                    {"fracao_unidade" in editForm && (
+                      <select style={{ ...base.select, flex: 1 }} value={editForm.fracao_unidade} onChange={e => setEditForm({ ...editForm, fracao_unidade: e.target.value })}>
+                        <option value="ml" style={optionStyle}>ml (dose)</option>
+                        <option value="un" style={optionStyle}>un (latas)</option>
+                      </select>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
             {temReceitas && editForm.controla_estoque === false && (
               <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 2 }}>🧪 O que este produto usa (baixa no estoque)</div>
-                <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Ex.: Copão Red Label usa 100 ml de Red Label e 1 Red Bull. A cada venda o sistema desconta a dose da garrafa e, quando ela acaba, baixa 1 do estoque.</div>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Ex.: Copão Red Label usa 150 ml de Red Label; Heineken lata usa 1 un do fardo. A cada venda o sistema desconta da garrafa ou do fardo aberto e, quando acaba, baixa 1 do estoque.</div>
                 {receita.map((r, idx) => {
                   const ins = produtos.find(p => p.id === r.insumo_id);
                   return (
                     <div key={idx} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
                       <select style={{ ...base.select, flex: 2 }} value={r.insumo_id || ""} onChange={e => setReceita(rs => rs.map((x, i) => i === idx ? { ...x, insumo_id: e.target.value } : x))}>
                         <option value="" style={optionStyle}>Escolha o produto…</option>
-                        {produtos.filter(p => !semEstoque(p) && p.id !== editModal.id).map(p => <option key={p.id} value={p.id} style={optionStyle}>{p.nome}{temVolume(p) ? ` (${p.volume_ml} ml)` : ""}</option>)}
+                        {produtos.filter(p => !semEstoque(p) && p.id !== editModal.id).map(p => <option key={p.id} value={p.id} style={optionStyle}>{p.nome}{temVolume(p) ? ` (${p.volume_ml} ${unidadeFracao(p)})` : ""}</option>)}
                       </select>
-                      <input style={{ ...base.input, flex: 1, minWidth: 70 }} type="number" placeholder={ins && temVolume(ins) ? "ml" : "qtd"} value={r.quantidade} onChange={e => setReceita(rs => rs.map((x, i) => i === idx ? { ...x, quantidade: e.target.value } : x))} />
-                      <span style={{ fontSize: 12, color: C.muted, width: 22 }}>{ins && temVolume(ins) ? "ml" : "un"}</span>
+                      <input style={{ ...base.input, flex: 1, minWidth: 70 }} type="number" placeholder={ins && temVolume(ins) ? unidadeFracao(ins) : "qtd"} value={r.quantidade} onChange={e => setReceita(rs => rs.map((x, i) => i === idx ? { ...x, quantidade: e.target.value } : x))} />
+                      <span style={{ fontSize: 12, color: C.muted, width: 22 }}>{ins && temVolume(ins) ? unidadeFracao(ins) : "un"}</span>
                       <button style={base.btnSm(C.red, "#fff")} onClick={() => setReceita(rs => rs.filter((_, i) => i !== idx))}>✕</button>
                     </div>
                   );

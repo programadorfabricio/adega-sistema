@@ -11,6 +11,8 @@ import { supabase, semEstoque } from "./constants";
 // itens: [{ produto_id, quantidade }]   sinal: -1 vende, +1 devolve (cancelamento)
 
 export const temVolume = (p) => Number(p?.volume_ml) > 0;
+// Unidade da fração: "ml" (garrafa em dose) ou "un" (fardo vendido em latas)
+export const unidadeFracao = (p) => (p?.fracao_unidade === "un" ? "un" : "ml");
 
 // ml totais de uma garrafa controlada por volume
 export const totalMl = (p) => {
@@ -33,7 +35,8 @@ export const deMl = (ml, vol) => {
 // "5 garrafas · aberta com 400 ml"
 export const textoGarrafa = (p) => {
   const aberto = Number(p.ml_aberto) || 0;
-  return aberto > 0 ? `aberta: ${aberto.toLocaleString("pt-BR")} ml` : "";
+  if (aberto <= 0) return "";
+  return unidadeFracao(p) === "un" ? `aberto: ${aberto.toLocaleString("pt-BR")} un` : `aberta: ${aberto.toLocaleString("pt-BR")} ml`;
 };
 
 export async function carregarReceitas(ids) {
