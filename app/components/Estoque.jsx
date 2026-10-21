@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, SCHEMA, semEstoque } from "./shared/constants";
+import { supabase, C, base, fmt, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
 
 // ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
 function BarcodeScanner({ onFound, onClose }) {
@@ -168,8 +168,8 @@ export default function Estoque() {
         />
       )}
 
-      {esgotados.length > 0 && <div style={base.alert("#a855f7")}>🚫 <strong>{esgotados.length} esgotado(s):</strong> {esgotados.map(p => p.nome).join(", ")}</div>}
-      {baixos.length > 0 && <div style={base.alert(C.red)}>⚠️ <strong>{baixos.length} estoque baixo:</strong> {baixos.map(p => p.nome).join(", ")}</div>}
+      {esgotados.length > 0 && <div style={base.alert("#a855f7")}>🚫 <strong>{esgotados.length} esgotado(s):</strong> {resumoNomes(esgotados)}</div>}
+      {baixos.length > 0 && <div style={base.alert(C.red)}>⚠️ <strong>{baixos.length} estoque baixo:</strong> {resumoNomes(baixos)}</div>}
 
       {showForm && (
         <div style={{ ...base.card, marginBottom: 16 }}>

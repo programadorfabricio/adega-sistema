@@ -21,6 +21,12 @@ export const MARCA = {
 // Produtos preparados na hora (copão, drinks, combos) não controlam estoque
 export const semEstoque = (p) => p?.controla_estoque === false;
 
+// Lista curta de nomes pros alertas ("A, B, C e mais 12")
+export const resumoNomes = (lista, max = 6) => {
+  const nomes = lista.map(p => p.nome);
+  return nomes.length <= max ? nomes.join(", ") : `${nomes.slice(0, max).join(", ")} e mais ${nomes.length - max}`;
+};
+
 const ACCENT = process.env.NEXT_PUBLIC_COR_DESTAQUE || "#f5c000";
 const hexToRgba = (hex, a) => {
   const h = hex.replace("#", "");

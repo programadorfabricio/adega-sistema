@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, C, base, fmt, today, hora, SCHEMA, semEstoque } from "./shared/constants";
+import { supabase, C, base, fmt, today, hora, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
 
 export default function Dashboard({ setPage }) {
   const [stats, setStats] = useState({ vendasHoje: 0, totalHoje: 0, estoqueBaixo: 0, esgotados: 0, saldoMes: 0, comandasAbertas: 0 });
@@ -72,12 +72,12 @@ export default function Dashboard({ setPage }) {
 
       {alertas.filter(p => p.estoque_atual === 0).length > 0 && (
         <div style={base.alert("#a855f7")}>
-          🚫 <strong>{alertas.filter(p => p.estoque_atual === 0).length} esgotado(s):</strong> {alertas.filter(p => p.estoque_atual === 0).map(p => p.nome).join(", ")}
+          🚫 <strong>{alertas.filter(p => p.estoque_atual === 0).length} esgotado(s):</strong> {resumoNomes(alertas.filter(p => p.estoque_atual === 0))}
         </div>
       )}
       {alertas.filter(p => p.estoque_atual > 0).length > 0 && (
         <div style={base.alert(C.red)}>
-          ⚠️ <strong>{alertas.filter(p => p.estoque_atual > 0).length} estoque baixo:</strong> {alertas.filter(p => p.estoque_atual > 0).map(p => p.nome).join(", ")}
+          ⚠️ <strong>{alertas.filter(p => p.estoque_atual > 0).length} estoque baixo:</strong> {resumoNomes(alertas.filter(p => p.estoque_atual > 0))}
         </div>
       )}
 
