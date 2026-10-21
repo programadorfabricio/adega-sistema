@@ -266,10 +266,11 @@ export default function Comandas({ usuario }) {
     loadComandas();
   };
 
-  const confirmarRemocaoComPin = async () => {
+  // Recebe o PIN completo (o estado ainda pode estar com 3 dígitos quando o 4º é digitado)
+  const confirmarRemocaoComPin = async (pinCompleto) => {
     if (!modalPin) return;
     const { data: u } = await supabase.from("usuarios").select("pin").eq("id", usuario?.id).single();
-    if (u?.pin !== pinDigitado) {
+    if (u?.pin !== pinCompleto) {
       setPinErro("PIN incorreto!");
       setTimeout(() => { setPinErro(""); setPinDigitado(""); }, 1500);
       return;
@@ -572,10 +573,10 @@ export default function Comandas({ usuario }) {
             {pinErro && <div style={{ ...base.alert(C.red), marginBottom: 12, justifyContent: "center" }}>{pinErro}</div>}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}>
               {[1,2,3,4,5,6,7,8,9].map(n => (
-                <button key={n} onClick={() => { if (pinDigitado.length < 4) { const novo = pinDigitado + n; setPinDigitado(novo); if (novo.length === 4) { setTimeout(() => confirmarRemocaoComPin(), 100); } } }} style={{ ...base.btn(C.card2, C.text), border: `1px solid ${C.border}`, fontSize: 18, padding: "14px" }}>{n}</button>
+                <button key={n} onClick={() => { if (pinDigitado.length < 4) { const novo = pinDigitado + n; setPinDigitado(novo); if (novo.length === 4) { setTimeout(() => confirmarRemocaoComPin(novo), 100); } } }} style={{ ...base.btn(C.card2, C.text), border: `1px solid ${C.border}`, fontSize: 18, padding: "14px" }}>{n}</button>
               ))}
               <div />
-              <button onClick={() => { if (pinDigitado.length < 4) { const novo = pinDigitado + "0"; setPinDigitado(novo); if (novo.length === 4) { setTimeout(() => confirmarRemocaoComPin(), 100); } } }} style={{ ...base.btn(C.card2, C.text), border: `1px solid ${C.border}`, fontSize: 18, padding: "14px" }}>0</button>
+              <button onClick={() => { if (pinDigitado.length < 4) { const novo = pinDigitado + "0"; setPinDigitado(novo); if (novo.length === 4) { setTimeout(() => confirmarRemocaoComPin(novo), 100); } } }} style={{ ...base.btn(C.card2, C.text), border: `1px solid ${C.border}`, fontSize: 18, padding: "14px" }}>0</button>
               <button onClick={() => setPinDigitado(p => p.slice(0,-1))} style={{ ...base.btn(C.card2, C.muted), border: `1px solid ${C.border}`, fontSize: 16, padding: "14px" }}>⌫</button>
             </div>
             <button style={{ ...base.btnOutline, width: "100%" }} onClick={() => { setModalPin(null); setPinDigitado(""); setPinErro(""); }}>Cancelar</button>
