@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, SCHEMA, semEstoque } from "./shared/constants";
+import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { useCaixaAberto } from "./Caixa";
 
@@ -106,10 +107,7 @@ export default function VendaRapida({ setPage }) {
     if (venda) {
       await supabase.from("venda_itens").insert(carrinho.map(i => ({ ...i, venda_id: venda.id })));
       await supabase.from("financeiro").insert({ tipo: "entrada", descricao: "Venda Rápida", valor: total, categoria: "venda" });
-      for (const item of carrinho) {
-        const { data: prod } = await supabase.from("produtos").select("*").eq("id", item.produto_id).single();
-        if (prod && !semEstoque(prod)) await supabase.from("produtos").update({ estoque_atual: Math.max(0, prod.estoque_atual - item.quantidade) }).eq("id", item.produto_id);
-      }
+      await movimentarEstoque(carrinho, -1);
     }
     setCarrinho([]); setSucesso(true); setLoading(false);
     setTimeout(() => setSucesso(false), 3000);

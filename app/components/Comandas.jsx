@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque } from "./shared/constants";
+import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -298,7 +299,7 @@ export default function Comandas({ usuario }) {
       await supabase.from("comanda_itens").insert({ comanda_id: selected.id, produto_id: produto.id, quantidade: 1, preco_unitario: produto.preco, subtotal: produto.preco });
     }
 
-    if (!semEstoque(prodAtual)) await supabase.from("produtos").update({ estoque_atual: prodAtual.estoque_atual - 1 }).eq("id", produto.id);
+    await movimentarEstoque([{ produto_id: produto.id, quantidade: 1 }], -1);
 
     const [{ data: itensAtualizados }, { data: produtosAtualizados }] = await Promise.all([
       supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id),
@@ -321,8 +322,7 @@ export default function Comandas({ usuario }) {
 
   const removerItem = async (item) => {
     await supabase.from("comanda_itens").delete().eq("id", item.id);
-    const { data: prod } = await supabase.from("produtos").select("*").eq("id", item.produto_id).single();
-    if (prod && !semEstoque(prod)) await supabase.from("produtos").update({ estoque_atual: prod.estoque_atual + item.quantidade }).eq("id", item.produto_id);
+    await movimentarEstoque([{ produto_id: item.produto_id, quantidade: item.quantidade }], +1);
     const { data: itensAtualizados } = await supabase.from("comanda_itens").select("*, produtos(nome, preco)").eq("comanda_id", selected.id);
     setItens(itensAtualizados || []);
     const total = (itensAtualizados || []).reduce((a, i) => a + Number(i.subtotal), 0);

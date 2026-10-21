@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque } from "./shared/constants";
+import { movimentarEstoque } from "./shared/estoque";
 
 const STATUS = {
   preparando: { label: "Preparando", icon: "🟡", cor: "#f5c000" },
@@ -185,13 +186,7 @@ export default function Delivery() {
     if (error || !entrega) { setSalvando(false); return setErro("Não foi possível salvar o pedido. Tente de novo."); }
 
     // Reserva o estoque: sai agora; volta se o pedido for cancelado
-    for (const item of carrinho) {
-      const p = (atuais || []).find(x => x.id === item.produto_id);
-      if (p && !semEstoque(p)) {
-        await supabase.from("produtos").update({ estoque_atual: Math.max(0, p.estoque_atual - item.quantidade) }).eq("id", p.id);
-        await supabase.from("estoque_movimentacoes").insert({ produto_id: p.id, tipo: "saida", quantidade: item.quantidade, motivo: `delivery #${entrega.numero}` });
-      }
-    }
+    await movimentarEstoque(carrinho, -1, `delivery #${entrega.numero}`);
 
     setSalvando(false); setNovo(false); load(); loadProdutos();
     mostrarAviso(`Pedido #${entrega.numero} criado`);
@@ -231,13 +226,7 @@ export default function Delivery() {
 
   const cancelar = async (e) => {
     if (!window.confirm(`Cancelar o pedido #${e.numero} de ${e.cliente_nome}? O estoque volta.`)) return;
-    for (const item of e.itens || []) {
-      const { data: p } = await supabase.from("produtos").select("*").eq("id", item.produto_id).single();
-      if (p && !semEstoque(p)) {
-        await supabase.from("produtos").update({ estoque_atual: p.estoque_atual + item.quantidade }).eq("id", p.id);
-        await supabase.from("estoque_movimentacoes").insert({ produto_id: p.id, tipo: "entrada", quantidade: item.quantidade, motivo: `delivery #${e.numero} cancelado` });
-      }
-    }
+    await movimentarEstoque(e.itens || [], +1, `delivery #${e.numero} cancelado`);
     await supabase.from("entregas").update({ status: "cancelado" }).eq("id", e.id);
     load(); loadProdutos();
   };
