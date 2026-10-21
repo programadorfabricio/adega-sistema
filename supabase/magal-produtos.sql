@@ -30,6 +30,7 @@ from (values
   ('Heineken lata',              'cervejas',  7.00, 'un', 12, true),
   ('Heineken Zero lata',         'cervejas',  7.00, 'un', 6,  true),
   ('Original lata',              'cervejas',  7.00, 'un', 12, true),
+  ('Heineken Ultimate lata',     'cervejas',  8.00, 'un', 12, true),
   -- Cervejas: fardos
   ('Fardo Crystal',              'cervejas', 40.00, 'fardo', 2, true),
   ('Fardo Itaipava',             'cervejas', 45.00, 'fardo', 2, true),
@@ -47,6 +48,7 @@ from (values
   ('Fardo Spaten',               'cervejas', 60.00, 'fardo', 2, true),
   ('Fardo Heineken',             'cervejas', 78.00, 'fardo', 2, true),
   ('Fardo Original',             'cervejas', 65.00, 'fardo', 2, true),
+  ('Fardo Heineken Ultimate',    'cervejas', 85.00, 'fardo', 2, true),
   -- Cervejas: long neck
   ('Amstel long neck',           'cervejas',  8.00, 'un', 6, true),
   ('Budweiser long neck',        'cervejas',  8.00, 'un', 6, true),
