@@ -15,7 +15,7 @@ insert into cfg values
   ('garrafa_energetico_ml',2000),  -- tamanho do Energético 2L
   ('garrafa_padrao_ml',    1000);  -- tamanho das garrafas (1000 = 1 L, 750 = 750 ml)
 
--- Tamanho de cada garrafa: deixe NULL pra usar o padrão acima, ou coloque 750 / 1000
+-- Tamanho de cada garrafa (confirmado pelo Magal): NULL = padrão de 1 L
 create temp table garrafas (nome text, ml numeric);
 insert into garrafas values
   ('Whisky Black Blend garrafa',    null),
@@ -23,12 +23,15 @@ insert into garrafas values
   ('Whisky Cavalo Branco garrafa',  null),
   ('Whisky Red Label garrafa',      null),
   ('Whisky Jack Daniel''s garrafa', null),
-  ('Gin QN garrafa',                null),
-  ('Gin Beefeater garrafa',         null),
+  ('Gin QN garrafa',                900),
+  ('Gin Beefeater garrafa',         750),
   ('Vodka Smirnoff garrafa',        null),
   ('Vodka Absolut garrafa',         null),
-  ('Vodka Cîroc garrafa',           null),
-  ('Licor 43 garrafa',              null),
+  ('Vodka Cîroc garrafa',           750),
+  ('Vodka Cîroc sabores garrafa',   750),
+  ('Vodka Absolut sabores garrafa', null),
+  ('Licor 43 garrafa',              750),
+  ('Licor Ballena garrafa',         750),
   ('Energético 2L',                 2000);
 
 -- Latas em cada fardo: confira com o Magal (os "c/12", "c/15", "c/18" já vêm certos)
