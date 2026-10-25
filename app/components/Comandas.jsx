@@ -187,6 +187,98 @@ function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loa
   );
 }
 
+// ─── FIADO ───────────────────────────────────────────────
+const saldoDe = (c, total) => Math.max(0, Number(total ?? c?.total ?? 0) - Number(c?.valor_pago || 0));
+
+// WhatsApp: só números; sem DDI, coloca 55
+const numeroWhats = (tel) => {
+  const n = String(tel || "").replace(/\D/g, "");
+  if (!n) return "";
+  return n.length <= 11 ? `55${n}` : n;
+};
+
+function linkCobranca(c, itens, total) {
+  const saldo = saldoDe(c, total);
+  const linhas = itens.map(i => `• ${i.quantidade}x ${i.produtos?.nome || "item"} — ${fmt(i.subtotal)}`).join("\n");
+  const pago = Number(c.valor_pago || 0);
+  const texto = `Olá, ${c.nome_cliente}! Aqui é da ${MARCA.nome} ${MARCA.emoji}\n\nSeu fiado:\n${linhas}\n\nTotal: ${fmt(total)}` +
+    (pago > 0 ? `\nJá pago: ${fmt(pago)}` : "") + `\n*Falta: ${fmt(saldo)}*\n\nQuando puder, acerta com a gente. Obrigado!`;
+  return `https://wa.me/${numeroWhats(c.telefone)}?text=${encodeURIComponent(texto)}`;
+}
+
+const FORMAS = [
+  { value: "pix", label: "PIX", cor: C.blue },
+  { value: "dinheiro", label: "Dinheiro", cor: C.green },
+  { value: "cartao_debito", label: "Débito", cor: "#a855f7" },
+  { value: "cartao_credito", label: "Crédito", cor: "#f97316" },
+];
+
+function ModalReceberFiado({ selected, totalComanda, loading, onConfirmar, onCancelar }) {
+  const saldo = saldoDe(selected, totalComanda);
+  const [valor, setValor] = useState(saldo.toFixed(2));
+  const [forma, setForma] = useState("pix");
+  const v = Number(String(valor).replace(",", "."));
+  const valido = v > 0 && v <= saldo + 0.009;
+  const quita = valido && v >= saldo - 0.009;
+  return (
+    <div style={base.modal}>
+      <div style={{ ...base.modalBox, maxWidth: 440 }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 16 }}>💵 Receber fiado</div>
+        <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>👤 {selected?.nome_cliente}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted }}><span>Total</span><span>{fmt(totalComanda)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted }}><span>Já pago</span><span>{fmt(selected?.valor_pago || 0)}</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 900, color: C.red, marginTop: 6 }}><span>Falta</span><span>{fmt(saldo)}</span></div>
+        </div>
+        <label style={base.label}>Quanto o cliente está pagando agora? (R$)</label>
+        <input style={{ ...base.input, fontSize: 18, fontWeight: 800, marginBottom: 14 }} type="number" step="0.01" value={valor} onChange={e => setValor(e.target.value)} autoFocus />
+        <label style={base.label}>Forma de pagamento</label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
+          {FORMAS.map(f => (
+            <button key={f.value} onClick={() => setForma(f.value)} style={{
+              padding: "10px 0", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12,
+              border: `2px solid ${forma === f.value ? f.cor : C.border}`,
+              background: forma === f.value ? `${f.cor}20` : C.card2,
+              color: forma === f.value ? f.cor : C.muted,
+            }}>{f.label}</button>
+          ))}
+        </div>
+        {valido && <div style={{ ...base.alert(quita ? C.green : C.blue), marginBottom: 14 }}>
+          {quita ? "✅ Quita o fiado e fecha a comanda" : `Pagamento parcial — vai faltar ${fmt(saldo - v)}`}
+        </div>}
+        {!valido && valor !== "" && <div style={{ ...base.alert(C.red), marginBottom: 14 }}>Valor maior que o que falta</div>}
+        <div style={base.row}>
+          <button style={{ ...base.btn(valido ? C.green : C.muted, "#fff"), flex: 1, padding: 13, opacity: valido ? 1 : 0.5 }} disabled={!valido || loading} onClick={() => onConfirmar(v, forma)}>
+            {loading ? "Processando..." : "✅ Confirmar recebimento"}
+          </button>
+          <button style={base.btnOutline} onClick={onCancelar}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalPendurar({ selected, erro, onConfirmar, onCancelar }) {
+  const [tel, setTel] = useState(selected?.telefone || "");
+  return (
+    <div style={base.modal}>
+      <div style={{ ...base.modalBox, maxWidth: 400 }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 8 }}>📒 {selected?.fiado ? "WhatsApp do cliente" : "Pendurar no fiado"}</div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
+          {selected?.fiado ? "Pra mandar a cobrança direto pro cliente." : <>A comanda de <strong style={{ color: C.text }}>{selected?.nome_cliente}</strong> sai das mesas e vai pra aba Fiado. Paga quando puder, até em parcelas.</>}
+        </div>
+        <label style={base.label}>WhatsApp do cliente (opcional)</label>
+        <input style={{ ...base.input, marginBottom: 16 }} value={tel} onChange={e => setTel(e.target.value)} placeholder="(19) 99999-9999" inputMode="tel" autoFocus />
+        {erro && <div style={{ ...base.alert(C.red), marginBottom: 12 }}>{erro}</div>}
+        <div style={base.row}>
+          <button style={base.btn()} onClick={() => onConfirmar(tel)}>{selected?.fiado ? "Salvar" : "📒 Pendurar"}</button>
+          <button style={base.btnOutline} onClick={onCancelar}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── COMANDAS ────────────────────────────────────────────
 export default function Comandas({ usuario }) {
   const [comandas, setComandas] = useState([]);
@@ -200,6 +292,12 @@ export default function Comandas({ usuario }) {
   const [modalPin, setModalPin] = useState(null); // item a remover
   const [pinDigitado, setPinDigitado] = useState("");
   const [pinErro, setPinErro] = useState("");
+  const [aba, setAba] = useState("mesas");            // mesas | fiado
+  const [fiadoNova, setFiadoNova] = useState(false);
+  const [telefone, setTelefone] = useState("");
+  const [modalReceber, setModalReceber] = useState(false);
+  const [modalPendurar, setModalPendurar] = useState(false);
+  const [erroFiado, setErroFiado] = useState("");
 
   const handleScan = useCallback(async (codigo) => {
     if (!selected) return;
@@ -261,8 +359,12 @@ export default function Comandas({ usuario }) {
 
   const abrirComanda = async () => {
     if (!nomeCliente) return;
-    await supabase.from("comandas").insert({ nome_cliente: nomeCliente, mesa: mesa || null, status: "aberta", total: 0, atendente_nome: usuario?.nome || "—" });
-    setNomeCliente(""); setMesa(""); setModalNova(false);
+    const nova = { nome_cliente: nomeCliente, mesa: mesa || null, status: "aberta", total: 0, atendente_nome: usuario?.nome || "—" };
+    if (fiadoNova) Object.assign(nova, { fiado: true, telefone: telefone || null, mesa: null });
+    const { error } = await supabase.from("comandas").insert(nova);
+    if (error) { setErroFiado(fiadoNova ? "O fiado ainda não foi ativado neste sistema. Fale com o suporte." : error.message); return; }
+    setNomeCliente(""); setMesa(""); setTelefone(""); setFiadoNova(false); setErroFiado(""); setModalNova(false);
+    setAba(fiadoNova ? "fiado" : "mesas");
     loadComandas();
   };
 
@@ -358,6 +460,50 @@ export default function Comandas({ usuario }) {
     loadComandas();
   };
 
+  // Fiado: cada pagamento entra como venda (aparece no caixa na forma certa) + entrada no financeiro.
+  // No pagamento que quita, a venda leva os itens da comanda (pros relatórios de produtos).
+  const receberFiado = async (valor, forma) => {
+    if (!selected) return;
+    setLoading(true);
+    try {
+      const total = itens.reduce((a, i) => a + Number(i.subtotal), 0);
+      const saldo = saldoDe(selected, total);
+      const v = Math.round(Math.min(valor, saldo) * 100) / 100;
+      if (v <= 0) return;
+      const quitou = v >= saldo - 0.009;
+      const { data: venda } = await supabase.from("vendas").insert({ total: v, forma_pagamento: forma, status: "concluida" }).select().single();
+      if (venda && quitou && itens.length) {
+        await supabase.from("venda_itens").insert(itens.map(i => ({ venda_id: venda.id, produto_id: i.produto_id, nome_produto: i.produtos?.nome || "", quantidade: i.quantidade, preco_unitario: i.preco_unitario, subtotal: i.subtotal })));
+      }
+      await supabase.from("financeiro").insert({ tipo: "entrada", descricao: `Fiado - ${selected.nome_cliente}${quitou ? "" : " (parcial)"}`, valor: v, categoria: "venda" });
+      const pago = Math.round((Number(selected.valor_pago || 0) + v) * 100) / 100;
+      if (quitou) {
+        await supabase.from("comandas").update({ status: "fechada", total, valor_pago: pago, forma_pagamento: forma }).eq("id", selected.id);
+        setSelected(null); setItens([]);
+      } else {
+        await supabase.from("comandas").update({ valor_pago: pago }).eq("id", selected.id);
+        setSelected({ ...selected, valor_pago: pago });
+      }
+      setModalReceber(false);
+      loadComandas();
+    } catch (err) {
+      console.error("Erro ao receber fiado:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const pendurar = async (tel) => {
+    if (!selected) return;
+    const dados = { fiado: true, telefone: tel || null };
+    const { error } = await supabase.from("comandas").update(dados).eq("id", selected.id);
+    if (error) { setErroFiado("O fiado ainda não foi ativado neste sistema. Fale com o suporte."); return; }
+    setSelected({ ...selected, ...dados });
+    setModalPendurar(false); setErroFiado("");
+    setAba("fiado");
+    loadComandas();
+  };
+
   const abrirModalPedido = async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
     setProdutos(data || []);
@@ -419,6 +565,10 @@ export default function Comandas({ usuario }) {
     setTimeout(() => { janela.print(); }, 300);
   };
   const totalComanda = itens.reduce((a, i) => a + Number(i.subtotal), 0);
+  const mesas = comandas.filter(c => !c.fiado);
+  const fiados = comandas.filter(c => c.fiado);
+  const lista = aba === "fiado" ? fiados : mesas;
+  const totalFiado = fiados.reduce((a, c) => a + saldoDe(c), 0);
   const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
 
   return (
@@ -445,19 +595,39 @@ export default function Comandas({ usuario }) {
       <div className="comanda-grid" style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
         {/* Lista */}
         <div className="comanda-lista">
-          <div style={base.sectionTitle}>Abertas ({comandas.length})</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            {[{ id: "mesas", label: `🍺 Abertas (${mesas.length})` }, { id: "fiado", label: `📒 Fiado (${fiados.length})` }].map(t => (
+              <button key={t.id} onClick={() => setAba(t.id)} style={{
+                flex: 1, padding: "9px 6px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 13,
+                border: `2px solid ${aba === t.id ? C.accent : C.border}`,
+                background: aba === t.id ? C.accentBg : C.card2,
+                color: aba === t.id ? C.accent : C.muted,
+              }}>{t.label}</button>
+            ))}
+          </div>
+          {aba === "fiado" && fiados.length > 0 && (
+            <div style={{ ...base.card, marginBottom: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: C.muted }}>Total a receber</span>
+              <span style={{ fontWeight: 900, color: C.red, fontSize: 16 }}>{fmt(totalFiado)}</span>
+            </div>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {comandas.map(c => (
+            {lista.map(c => (
               <div key={c.id} style={{ ...base.card, cursor: "pointer", borderColor: selected?.id === c.id ? C.accent : C.border, borderWidth: selected?.id === c.id ? 2 : 1 }}>
                 <div onClick={() => selecionarComanda(c)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div>
                     <div style={{ fontWeight: 700, color: C.text, marginBottom: 2 }}>👤 {c.nome_cliente}</div>
                     {c.mesa && <div style={{ fontSize: 12, color: C.muted }}>Mesa {c.mesa}</div>}
-                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{hora(c.created_at)}</div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{c.fiado ? new Date(c.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " · " : ""}{hora(c.created_at)}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 800, color: C.accent, fontSize: 16 }}>{fmt(c.total)}</div>
-                    <div style={{ fontSize: 11, color: C.muted }}>{c.comanda_itens?.length || 0} itens</div>
+                    {c.fiado ? <>
+                      <div style={{ fontWeight: 800, color: C.red, fontSize: 16 }}>{fmt(saldoDe(c))}</div>
+                      <div style={{ fontSize: 11, color: C.muted }}>{Number(c.valor_pago) > 0 ? `pagou ${fmt(c.valor_pago)}` : "falta"}</div>
+                    </> : <>
+                      <div style={{ fontWeight: 800, color: C.accent, fontSize: 16 }}>{fmt(c.total)}</div>
+                      <div style={{ fontSize: 11, color: C.muted }}>{c.comanda_itens?.length || 0} itens</div>
+                    </>}
                   </div>
                 </div>
                 <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
@@ -469,7 +639,7 @@ export default function Comandas({ usuario }) {
                 </div>
               </div>
             ))}
-            {comandas.length === 0 && <div style={{ ...base.card, textAlign: "center", color: C.muted, fontSize: 13, padding: 32 }}>Nenhuma comanda aberta</div>}
+            {lista.length === 0 && <div style={{ ...base.card, textAlign: "center", color: C.muted, fontSize: 13, padding: 32 }}>{aba === "fiado" ? "Ninguém pendurado 🙌" : "Nenhuma comanda aberta"}</div>}
           </div>
         </div>
 
@@ -480,7 +650,8 @@ export default function Comandas({ usuario }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
                 <div>
                   <button onClick={() => setSelected(null)} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", marginBottom: 4, display: "block" }}>← Voltar</button>
-                  <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>👤 {selected.nome_cliente}</div>
+                  <div style={{ fontWeight: 800, fontSize: 18, color: C.text }}>👤 {selected.nome_cliente} {selected.fiado && <span style={{ ...base.tag(C.red), fontSize: 11, verticalAlign: "middle" }}>FIADO</span>}</div>
+                  {selected.fiado && <div style={{ fontSize: 12, color: C.muted, cursor: "pointer" }} onClick={() => { setErroFiado(""); setModalPendurar(true); }}>📱 {selected.telefone || "adicionar WhatsApp"} ✏️</div>}
                   {selected.mesa && <div style={{ fontSize: 13, color: C.muted }}>Mesa {selected.mesa}</div>}
                   {selected.atendente_nome && <div style={{ fontSize: 12, color: C.muted }}>Aberta por: {selected.atendente_nome}</div>}
                 </div>
@@ -493,7 +664,13 @@ export default function Comandas({ usuario }) {
                     </div>
                   )}
                   <button style={base.btn("#6366f1", "#fff")} onClick={imprimirComanda}>🖨️ Imprimir</button>
-                  <button style={base.btn(C.green, "#fff")} onClick={() => setModalFechar(true)}>✅ Fechar Conta</button>
+                  {selected.fiado ? <>
+                    <button style={base.btn("#25D366", "#fff")} onClick={() => window.open(linkCobranca(selected, itens, totalComanda), "_blank")}>📲 Cobrar</button>
+                    <button style={base.btn(C.green, "#fff")} onClick={() => setModalReceber(true)} disabled={saldoDe(selected, totalComanda) <= 0}>💵 Receber</button>
+                  </> : <>
+                    <button style={base.btn(C.card2, C.text)} onClick={() => { setErroFiado(""); setModalPendurar(true); }}>📒 Pendurar</button>
+                    <button style={base.btn(C.green, "#fff")} onClick={() => setModalFechar(true)}>✅ Fechar Conta</button>
+                  </>}
                 </div>
               </div>
 
@@ -541,7 +718,11 @@ export default function Comandas({ usuario }) {
 
               {itens.length > 0 && (
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
-                  <div style={{ fontSize: 22, fontWeight: 900 }}>Total: <span style={{ color: C.accent }}>{fmt(totalComanda)}</span></div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 22, fontWeight: 900 }}>Total: <span style={{ color: C.accent }}>{fmt(totalComanda)}</span></div>
+                    {selected.fiado && Number(selected.valor_pago) > 0 && <div style={{ fontSize: 14, color: C.muted, marginTop: 4 }}>Já pago: {fmt(selected.valor_pago)}</div>}
+                    {selected.fiado && <div style={{ fontSize: 18, fontWeight: 900, color: C.red, marginTop: 2 }}>Falta: {fmt(saldoDe(selected, totalComanda))}</div>}
+                  </div>
                 </div>
               )}
             </div>
@@ -593,13 +774,25 @@ export default function Comandas({ usuario }) {
               <label style={base.label}>Nome do Cliente *</label>
               <input style={base.input} value={nomeCliente} onChange={e => setNomeCliente(e.target.value)} placeholder="Ex: João, Mesa 3..." autoFocus />
             </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={base.label}>Mesa (opcional)</label>
-              <input style={base.input} value={mesa} onChange={e => setMesa(e.target.value)} placeholder="Ex: 1, 2, 3..." />
-            </div>
+            <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 14, marginBottom: 14, cursor: "pointer", background: fiadoNova ? `${C.red}15` : C.card2, border: `1px solid ${fiadoNova ? C.red : C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+              <input type="checkbox" checked={fiadoNova} onChange={e => setFiadoNova(e.target.checked)} />
+              <span>📒 <strong>Fiado</strong> — cliente paga depois</span>
+            </label>
+            {fiadoNova ? (
+              <div style={{ marginBottom: 20 }}>
+                <label style={base.label}>WhatsApp do cliente (opcional, pra cobrar)</label>
+                <input style={base.input} value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="(19) 99999-9999" inputMode="tel" />
+              </div>
+            ) : (
+              <div style={{ marginBottom: 20 }}>
+                <label style={base.label}>Mesa (opcional)</label>
+                <input style={base.input} value={mesa} onChange={e => setMesa(e.target.value)} placeholder="Ex: 1, 2, 3..." />
+              </div>
+            )}
+            {erroFiado && <div style={{ ...base.alert(C.red), marginBottom: 12 }}>{erroFiado}</div>}
             <div style={base.row}>
-              <button style={base.btn()} onClick={abrirComanda}>Abrir Comanda</button>
-              <button style={base.btnOutline} onClick={() => setModalNova(false)}>Cancelar</button>
+              <button style={base.btn()} onClick={abrirComanda}>{fiadoNova ? "Abrir Fiado" : "Abrir Comanda"}</button>
+              <button style={base.btnOutline} onClick={() => { setModalNova(false); setErroFiado(""); }}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -662,6 +855,25 @@ export default function Comandas({ usuario }) {
           loading={loading}
           onConfirmar={fecharComanda}
           onCancelar={() => setModalFechar(false)}
+        />
+      )}
+
+      {modalReceber && selected && (
+        <ModalReceberFiado
+          selected={selected}
+          totalComanda={totalComanda}
+          loading={loading}
+          onConfirmar={receberFiado}
+          onCancelar={() => setModalReceber(false)}
+        />
+      )}
+
+      {modalPendurar && selected && (
+        <ModalPendurar
+          selected={selected}
+          erro={erroFiado}
+          onConfirmar={pendurar}
+          onCancelar={() => { setModalPendurar(false); setErroFiado(""); }}
         />
       )}
     </div>
