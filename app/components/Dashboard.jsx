@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase, C, base, fmt, today, hora, SCHEMA, semEstoque, resumoNomes, PAGINAS_OCULTAS } from "./shared/constants";
+import { rotuloPagamento } from "./shared/pagamento";
 
 export default function Dashboard({ setPage }) {
   const [stats, setStats] = useState({ vendasHoje: 0, totalHoje: 0, estoqueBaixo: 0, esgotados: 0, saldoMes: 0, comandasAbertas: 0 });
@@ -103,7 +104,7 @@ export default function Dashboard({ setPage }) {
             {recentes.map(v => (
               <tr key={v.id}>
                 <td style={base.td}>{hora(v.created_at)}</td>
-                <td style={base.td}><span style={base.tag(C.accent)}>{v.forma_pagamento || "—"}</span></td>
+                <td style={base.td}><span style={base.tag(C.accent)}>{rotuloPagamento(v)}</span></td>
                 <td style={{ ...base.td, color: C.green, fontWeight: 700 }}>{fmt(v.total)}</td>
               </tr>
             ))}

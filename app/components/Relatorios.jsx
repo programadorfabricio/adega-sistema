@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, today } from "./shared/constants";
 import MonthPicker from "./shared/MonthPicker";
+import { partesDaVenda } from "./shared/pagamento";
 
 export default function Relatorios() {
   const [vendas, setVendas] = useState([]);
@@ -25,11 +26,13 @@ export default function Relatorios() {
   const formaCor = { pix: C.blue, dinheiro: C.green, cartao_debito: "#a855f7", cartao_credito: "#f97316" };
 
   const totalGeral = vendas.reduce((a, v) => a + Number(v.total), 0);
+  const totalDescontos = vendas.reduce((a, v) => a + Number(v.desconto || 0), 0);
   const ticketMedio = vendas.length > 0 ? totalGeral / vendas.length : 0;
 
   const porPagamento = formas.map(forma => {
-    const itens = vendas.filter(v => v.forma_pagamento === forma);
-    const total = itens.reduce((a, v) => a + Number(v.total), 0);
+    const partes = vendas.flatMap(v => partesDaVenda(v)).filter(p => p.forma === forma);
+    const itens = partes;
+    const total = partes.reduce((a, p) => a + p.valor, 0);
     return { forma, quantidade: itens.length, total, ticketMedio: itens.length > 0 ? total / itens.length : 0 };
   }).filter(p => p.quantidade > 0);
 
@@ -77,16 +80,16 @@ export default function Relatorios() {
           {/* Cards resumo */}
           <div className="rel-grid4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
             {[
-              { label: "Total Faturado", val: fmt(totalGeral), color: C.accent, icon: "💰" },
+              { label: "Total Faturado", val: fmt(totalGeral), sub: totalDescontos > 0 ? `descontos dados: ${fmt(totalDescontos)}` : "", color: C.accent, icon: "💰" },
               { label: "Nº de Vendas", val: vendas.length, color: C.blue, icon: "🧾" },
               { label: "Ticket Médio", val: fmt(ticketMedio), color: C.green, icon: "📊" },
-              { label: "Melhor Dia", val: porDia.length > 0 ? fmt(Math.max(...porDia.map(d => d.total))) : "R$ 0,00", sub: porDia.length > 0 ? new Date(porDia.reduce((a, b) => a.total > b.total ? a : b).dia + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "", color: "#f97316", icon: "🏆" },
+              { label: "Melhor Dia", val: porDia.length > 0 ? fmt(Math.max(...porDia.map(d => d.total))) : "R$ 0,00", sub: porDia.length > 0 ? new Date(porDia.reduce((a, b) => a.total > b.total ? a : b).dia + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }).replace(/^/, "📅 ") : "", color: "#f97316", icon: "🏆" },
             ].map((c, i) => (
               <div key={i} style={base.card}>
                 <div style={{ fontSize: 22, marginBottom: 8 }}>{c.icon}</div>
                 <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{c.label}</div>
                 <div style={{ fontSize: 22, fontWeight: 900, color: c.color }}>{c.val}</div>
-                {c.sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>📅 {c.sub}</div>}
+                {c.sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{c.sub}</div>}
               </div>
             ))}
           </div>

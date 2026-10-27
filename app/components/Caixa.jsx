@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, hora, dataHora, SCHEMA, MARCA } from "./shared/constants";
+import { partesDaVenda } from "./shared/pagamento";
 
 const FORMAS = [
   { id: "dinheiro", label: "Dinheiro", icon: "💵" },
@@ -14,7 +15,7 @@ const num = (v) => Number(String(v ?? "").replace(",", ".")) || 0;
 // Soma das vendas do período por forma de pagamento + movimentos da gaveta
 function calcular(caixa, vendas, movimentos) {
   const porForma = Object.fromEntries(FORMAS.map(f => [f.id, 0]));
-  for (const v of vendas) porForma[v.forma_pagamento] = (porForma[v.forma_pagamento] || 0) + Number(v.total);
+  for (const v of vendas) for (const p of partesDaVenda(v)) porForma[p.forma] = (porForma[p.forma] || 0) + p.valor;
   const totalVendas = vendas.reduce((a, v) => a + Number(v.total), 0);
   const sangrias = movimentos.filter(m => m.tipo === "sangria").reduce((a, m) => a + Number(m.valor), 0);
   const suprimentos = movimentos.filter(m => m.tipo === "suprimento").reduce((a, m) => a + Number(m.valor), 0);
@@ -85,7 +86,7 @@ export default function Caixa({ usuario }) {
     setCaixa(atual);
     if (atual) {
       const [{ data: vs }, { data: ms }] = await Promise.all([
-        supabase.from("vendas").select("id, total, forma_pagamento, created_at").eq("status", "concluida").gte("created_at", atual.aberto_em),
+        supabase.from("vendas").select("*").eq("status", "concluida").gte("created_at", atual.aberto_em),
         supabase.from("caixa_movimentos").select("*").eq("caixa_id", atual.id).order("created_at"),
       ]);
       setVendas(vs || []); setMovimentos(ms || []);
@@ -129,7 +130,7 @@ export default function Caixa({ usuario }) {
     setSalvando(true);
     // Recalcula com os dados mais recentes antes de gravar
     const [{ data: vs }, { data: ms }] = await Promise.all([
-      supabase.from("vendas").select("id, total, forma_pagamento, created_at").eq("status", "concluida").gte("created_at", caixa.aberto_em),
+      supabase.from("vendas").select("*").eq("status", "concluida").gte("created_at", caixa.aberto_em),
       supabase.from("caixa_movimentos").select("*").eq("caixa_id", caixa.id),
     ]);
     const final = calcular(caixa, vs || [], ms || []);

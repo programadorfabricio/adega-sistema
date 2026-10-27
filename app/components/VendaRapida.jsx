@@ -4,6 +4,7 @@ import { supabase, C, base, fmt, SCHEMA, semEstoque } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { useCaixaAberto } from "./Caixa";
+import { FORMAS_PAG, CampoDesconto, PagamentoDividido, calcDesconto, inserirVenda, linhasIniciais, linhasBatem, reajustarLinhas, num } from "./shared/pagamento";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
 function useBarcodeListener(onScan) {
@@ -45,6 +46,10 @@ export default function VendaRapida({ setPage }) {
   const [sucesso, setSucesso] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scanFeedback, setScanFeedback] = useState(null);
+  const [descTipo, setDescTipo] = useState("R$");
+  const [descValor, setDescValor] = useState("");
+  const [dividir, setDividir] = useState(false);
+  const [linhas, setLinhas] = useState([]);
 
   const loadProdutos = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
@@ -61,7 +66,13 @@ export default function VendaRapida({ setPage }) {
   }, [loadProdutos]);
 
   const filtrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
-  const total = carrinho.reduce((a, i) => a + i.subtotal, 0);
+  const subtotal = carrinho.reduce((a, i) => a + i.subtotal, 0);
+  const desconto = calcDesconto(subtotal, descTipo, descValor);
+  const total = Math.round((subtotal - desconto) * 100) / 100;
+  const pagamentoOk = !dividir || linhasBatem(total, linhas);
+  const dinheiroDividido = dividir ? linhas.filter(l => l.forma === "dinheiro").reduce((a, l) => a + num(l.valor), 0) : 0;
+  useEffect(() => { if (dividir) setLinhas(ls => reajustarLinhas(total, ls)); }, [total, dividir]);
+  const ligarDivisao = (on) => { setDividir(on); if (on) setLinhas(linhasIniciais(total)); };
 
   const [ultimoAdicionado, setUltimoAdicionado] = useState(null);
 
@@ -101,15 +112,16 @@ export default function VendaRapida({ setPage }) {
   };
 
   const finalizar = async () => {
-    if (!carrinho.length) return;
+    if (!carrinho.length || !pagamentoOk) return;
     setLoading(true);
-    const { data: venda } = await supabase.from("vendas").insert({ total, forma_pagamento: pagamento, status: "concluida" }).select().single();
+    const pagamentos = dividir ? linhas : [{ forma: pagamento, valor: total }];
+    const { venda } = await inserirVenda({ total, desconto, pagamentos });
     if (venda) {
       await supabase.from("venda_itens").insert(carrinho.map(i => ({ ...i, venda_id: venda.id })));
-      await supabase.from("financeiro").insert({ tipo: "entrada", descricao: "Venda Rápida", valor: total, categoria: "venda" });
+      await supabase.from("financeiro").insert({ tipo: "entrada", descricao: desconto > 0 ? `Venda Rápida (desconto ${fmt(desconto)})` : "Venda Rápida", valor: total, categoria: "venda" });
       await movimentarEstoque(carrinho, -1);
     }
-    setCarrinho([]); setSucesso(true); setLoading(false);
+    setCarrinho([]); setDescValor(""); setDividir(false); setSucesso(true); setLoading(false);
     setTimeout(() => setSucesso(false), 3000);
   };
 
@@ -200,19 +212,35 @@ export default function VendaRapida({ setPage }) {
           {carrinho.length > 0 && (
             <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
               <div style={{ marginBottom: 12 }}>
-                <label style={base.label}>Pagamento</label>
-                <select style={base.select} value={pagamento} onChange={e => setPagamento(e.target.value)}>
-                  <option value="pix">PIX</option>
-                  <option value="dinheiro">Dinheiro</option>
-                  <option value="cartao_debito">Cartão Débito</option>
-                  <option value="cartao_credito">Cartão Crédito</option>
-                </select>
+                <CampoDesconto tipo={descTipo} setTipo={setDescTipo} valor={descValor} setValor={setDescValor} />
               </div>
-              {pagamento === "dinheiro" && <div style={{ marginBottom: 12 }}><TrocoCalculator total={total} /></div>}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={base.label}>Pagamento</label>
+                  <button type="button" onClick={() => ligarDivisao(!dividir)} style={{ background: "none", border: "none", color: C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 6 }}>
+                    {dividir ? "← uma forma só" : "Pagar em 2 formas"}
+                  </button>
+                </div>
+                {dividir
+                  ? <PagamentoDividido total={total} linhas={linhas} setLinhas={setLinhas} />
+                  : (
+                    <select style={base.select} value={pagamento} onChange={e => setPagamento(e.target.value)}>
+                      {FORMAS_PAG.map(f => <option key={f.value} value={f.value}>{f.value.startsWith("cartao") ? `Cartão ${f.label}` : f.label}</option>)}
+                    </select>
+                  )}
+              </div>
+              {!dividir && pagamento === "dinheiro" && <div style={{ marginBottom: 12 }}><TrocoCalculator total={total} /></div>}
+              {dividir && dinheiroDividido > 0 && <div style={{ marginBottom: 12 }}><TrocoCalculator total={dinheiroDividido} /></div>}
+              {desconto > 0 && (
+                <div style={{ fontSize: 13, color: C.muted, marginBottom: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", color: C.red }}><span>Desconto</span><span>− {fmt(desconto)}</span></div>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 20, fontWeight: 900, marginBottom: 14, color: C.text }}>
                 <span>Total</span><span style={{ color: C.accent }}>{fmt(total)}</span>
               </div>
-              <button style={{ ...base.btn(C.green, "#fff"), width: "100%", padding: "13px", fontSize: 15 }} onClick={finalizar} disabled={loading}>
+              <button style={{ ...base.btn(pagamentoOk ? C.green : C.muted, "#fff"), width: "100%", padding: "13px", fontSize: 15, opacity: pagamentoOk ? 1 : 0.5 }} onClick={finalizar} disabled={loading || !pagamentoOk}>
                 {loading ? "Registrando..." : "✅ Finalizar Venda"}
               </button>
             </div>

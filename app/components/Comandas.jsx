@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
+import { CampoDesconto, calcDesconto, inserirVenda, reajustarLinhas, num } from "./shared/pagamento";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
 function useBarcodeListener(onScan, ativo) {
@@ -32,7 +33,11 @@ function useBarcodeListener(onScan, ativo) {
 }
 
 // ─── MODAL FECHAR CONTA ──────────────────────────────────
-function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loading, onConfirmar, onCancelar }) {
+function ModalFecharConta({ selected, totalComanda: subtotalComanda, pagamento, setPagamento, loading, onConfirmar, onCancelar }) {
+  const [descTipo, setDescTipo] = useState("R$");
+  const [descValor, setDescValor] = useState("");
+  const desconto = calcDesconto(subtotalComanda, descTipo, descValor);
+  const totalComanda = Math.round((subtotalComanda - desconto) * 100) / 100;
   const [modo, setModo] = useState("total");
   const [numPessoas, setNumPessoas] = useState(2);
   const [pessoasPagamento, setPessoasPagamento] = useState([
@@ -58,12 +63,22 @@ function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loa
   };
 
   const updatePessoa = (i, campo, val) => {
-    setPessoasPagamento(p => p.map((x, idx) => idx === i ? { ...x, [campo]: val } : x));
+    setPessoasPagamento(p => {
+      const novas = p.map((x, idx) => idx === i ? { ...x, [campo]: val } : x);
+      return campo === "valor" && i < novas.length - 1 ? reajustarLinhas(totalComanda, novas) : novas;
+    });
   };
 
-  const totalDividido = pessoasPagamento.reduce((a, p) => a + Number(p.valor || 0), 0);
+  useEffect(() => { if (modo === "dividir") setPessoasPagamento(ps => reajustarLinhas(totalComanda, ps)); }, [totalComanda, modo]);
+
+  const totalDividido = pessoasPagamento.reduce((a, p) => a + num(p.valor), 0);
   const diferenca = totalComanda - totalDividido;
   const podeConfirmar = modo === "total" || Math.abs(diferenca) < 0.01;
+  const confirmar = () => onConfirmar({
+    desconto,
+    pagamentos: modo === "total" ? [{ forma: pagamento, valor: totalComanda }] : pessoasPagamento.map(p => ({ forma: p.forma, valor: p.valor })),
+  });
+  const dinheiroDividido = pessoasPagamento.filter(p => p.forma === "dinheiro").reduce((a, p) => a + num(p.valor), 0);
 
   return (
     <div style={base.modal}>
@@ -78,13 +93,19 @@ function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loa
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: C.muted }}>Total</div>
+            {desconto > 0 && <div style={{ fontSize: 13, color: C.muted, textDecoration: "line-through" }}>{fmt(subtotalComanda)}</div>}
             <div style={{ fontSize: 26, fontWeight: 900, color: C.accent }}>{fmt(totalComanda)}</div>
+            {desconto > 0 && <div style={{ fontSize: 12, color: C.red, fontWeight: 700 }}>desconto − {fmt(desconto)}</div>}
           </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <CampoDesconto tipo={descTipo} setTipo={setDescTipo} valor={descValor} setValor={setDescValor} />
         </div>
 
         {/* Abas */}
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {[{ id: "total", label: "💳 Pagar Total" }, { id: "dividir", label: "🤝 Dividir Conta" }].map(tab => (
+          {[{ id: "total", label: "💳 Pagar Total" }, { id: "dividir", label: "🤝 Dividir / 2 formas" }].map(tab => (
             <button key={tab.id} onClick={() => { setModo(tab.id); if (tab.id === "dividir") aplicarDivisao(2); }} style={{
               flex: 1, padding: "10px", borderRadius: 10,
               border: `2px solid ${modo === tab.id ? C.accent : C.border}`,
@@ -128,6 +149,7 @@ function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loa
                   }}>{n}</button>
                 ))}
               </div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Uma pessoa pagando em 2 formas (ex.: dinheiro + PIX)? Escolha 2 e ajuste os valores.</div>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 280, overflowY: "auto", marginBottom: 10 }}>
@@ -156,6 +178,8 @@ function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loa
               ))}
             </div>
 
+            {dinheiroDividido > 0 && <div style={{ marginBottom: 10 }}><TrocoCalculator total={dinheiroDividido} /></div>}
+
             {/* Resumo divisão */}
             <div style={{ background: Math.abs(diferenca) < 0.01 ? `${C.green}15` : `${C.red}15`, border: `1px solid ${Math.abs(diferenca) < 0.01 ? C.green : C.red}40`, borderRadius: 10, padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div>
@@ -175,7 +199,7 @@ function ModalFecharConta({ selected, totalComanda, pagamento, setPagamento, loa
         <div style={base.row}>
           <button
             style={{ ...base.btn(podeConfirmar ? C.green : C.muted, "#fff"), flex: 1, padding: "13px", fontSize: 15, opacity: podeConfirmar ? 1 : 0.5 }}
-            onClick={podeConfirmar ? onConfirmar : undefined}
+            onClick={podeConfirmar ? confirmar : undefined}
             disabled={loading || !podeConfirmar}
           >
             {loading ? "Processando..." : "✅ Confirmar Pagamento"}
@@ -433,17 +457,18 @@ export default function Comandas({ usuario }) {
     loadComandas();
   };
 
-  const fecharComanda = async () => {
+  const fecharComanda = async ({ desconto = 0, pagamentos } = {}) => {
     if (!selected) return;
     setLoading(true);
     try {
-      const total = itens.reduce((a, i) => a + Number(i.subtotal), 0);
-      const { data: venda } = await supabase.from("vendas").insert({ total, forma_pagamento: pagamento, status: "concluida" }).select().single();
+      const subtotal = itens.reduce((a, i) => a + Number(i.subtotal), 0);
+      const total = Math.round((subtotal - desconto) * 100) / 100;
+      const { venda, forma } = await inserirVenda({ total, desconto, pagamentos: pagamentos || [{ forma: pagamento, valor: total }] });
       if (venda) {
         await supabase.from("venda_itens").insert(itens.map(i => ({ venda_id: venda.id, produto_id: i.produto_id, nome_produto: i.produtos?.nome || "", quantidade: i.quantidade, preco_unitario: i.preco_unitario, subtotal: i.subtotal })));
-        await supabase.from("financeiro").insert({ tipo: "entrada", descricao: `Comanda - ${selected.nome_cliente}`, valor: total, categoria: "venda" });
+        await supabase.from("financeiro").insert({ tipo: "entrada", descricao: `Comanda - ${selected.nome_cliente}${desconto > 0 ? ` (desconto ${fmt(desconto)})` : ""}`, valor: total, categoria: "venda" });
       }
-      await supabase.from("comandas").update({ status: "fechada", total, forma_pagamento: pagamento }).eq("id", selected.id);
+      await supabase.from("comandas").update({ status: "fechada", total, forma_pagamento: forma }).eq("id", selected.id);
       setSelected(null); setItens([]); setModalFechar(false);
       loadComandas();
     } catch (err) {

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, today, dataHora, SCHEMA } from "./shared/constants";
+import { partesDaVenda, rotuloPagamento } from "./shared/pagamento";
 
 export default function Historico() {
   const [vendas, setVendas] = useState([]);
@@ -51,7 +52,7 @@ export default function Historico() {
   const totalDia = vendas.filter(v => v.created_at?.startsWith(today())).reduce((a, v) => a + Number(v.total), 0);
 
   const vendasFiltradas = vendas
-    .filter(v => filtroPagamento === "todos" || v.forma_pagamento === filtroPagamento)
+    .filter(v => filtroPagamento === "todos" || partesDaVenda(v).some(p => p.forma === filtroPagamento))
     .filter(v => !busca || fmt(v.total).includes(busca) || v.forma_pagamento?.includes(busca.toLowerCase()))
     .filter(v => !dataInicio || v.created_at?.slice(0, 10) >= dataInicio)
     .filter(v => !dataFim || v.created_at?.slice(0, 10) <= dataFim);
@@ -112,7 +113,7 @@ export default function Historico() {
                   <>
                     <tr key={v.id} style={{ background: selected?.id === v.id ? C.accentBg : "transparent" }}>
                       <td style={base.td}>{dataHora(v.created_at)}</td>
-                      <td style={base.td}><span style={base.tag(C.accent)}>{v.forma_pagamento || "—"}</span></td>
+                      <td style={base.td}><span style={base.tag(C.accent)}>{rotuloPagamento(v)}</span></td>
                       <td style={{ ...base.td, color: C.green, fontWeight: 700 }}>{fmt(v.total)}</td>
                       <td style={base.td}>
                         <button style={base.btnSm(selected?.id === v.id ? C.card2 : C.accent, selected?.id === v.id ? C.muted : "#000")} onClick={() => verDetalhes(v)}>
@@ -132,7 +133,7 @@ export default function Historico() {
                               </div>
                             ))}
                             <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8, marginTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 16 }}>
-                              <span style={{ color: C.text }}>Total</span>
+                              <span style={{ color: C.text }}>Total{Number(v.desconto) > 0 ? ` (desconto ${fmt(v.desconto)})` : ""}</span>
                               <span style={{ color: C.accent }}>{fmt(v.total)}</span>
                             </div>
                           </div>
