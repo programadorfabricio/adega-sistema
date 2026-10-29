@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
 import { temVolume, textoGarrafa, unidadeFracao } from "./shared/estoque";
+import { custoDoProduto, margem } from "./shared/custo";
 
 // ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
 function BarcodeScanner({ onFound, onClose }) {
@@ -96,9 +97,15 @@ export default function Estoque() {
   const [filtroCat, setFiltroCat] = useState("todas");
   const [filtroStatus, setFiltroStatus] = useState("todos");
 
+  const [receitasTodas, setReceitasTodas] = useState({}); // { produto_id: [{ insumo_id, quantidade }] }
+
   const load = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
     setProdutos(data || []);
+    const { data: ins, error } = await supabase.from("produto_insumos").select("produto_id, insumo_id, quantidade");
+    const r = {};
+    if (!error) (ins || []).forEach(x => { (r[x.produto_id] ||= []).push(x); });
+    setReceitasTodas(r);
   }, []);
 
   const loadCategorias = useCallback(async () => {
@@ -122,6 +129,17 @@ export default function Estoque() {
     return () => supabase.removeChannel(channel);
   }, [load, loadCategorias]);
 
+  // Custo e lucro (só depois do custo-lucro.sql)
+  const temCustos = produtos.some(p => "preco_custo" in p);
+  const porId = Object.fromEntries(produtos.map(p => [p.id, p]));
+  const custoDe = (p) => custoDoProduto(p, receitasTodas[p.id], porId);
+  const numOuNull = (v) => (v === "" || v === null || v === undefined || isNaN(Number(String(v).replace(",", ".")))) ? null : Number(String(v).replace(",", "."));
+  const linhaLucro = (preco, custo, receita) => {
+    if (custo === null) return <div style={{ fontSize: 11, color: C.muted }}>{receita ? "custo: falta o custo de algum item da receita" : "sem custo cadastrado"}</div>;
+    const m = margem(preco, custo);
+    return <div style={{ fontSize: 11, color: m !== null && m < 0.15 ? C.red : C.green }}>custo {fmt(custo)} · lucro {fmt(Number(preco) - custo)}{m !== null ? ` (${Math.round(m * 100)}%)` : ""}</div>;
+  };
+
   const controlados = produtos.filter(p => !semEstoque(p));
   const esgotados = controlados.filter(p => p.estoque_atual === 0);
   const baixos = controlados.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
@@ -142,7 +160,9 @@ export default function Estoque() {
     const { data: existente } = await supabase.from("produtos").select("id").eq("nome", form.nome).eq("ativo", true).single();
     if (existente) { setErroForm(`Já existe um produto com o nome "${form.nome}".`); return; }
     setErroForm("");
-    await supabase.from("produtos").insert({ ...form, preco: Number(form.preco), estoque_atual: Number(form.estoque_atual || 0), estoque_minimo: Number(form.estoque_minimo || 0) });
+    const novo = { ...form, preco: Number(form.preco), estoque_atual: Number(form.estoque_atual || 0), estoque_minimo: Number(form.estoque_minimo || 0) };
+    if ("preco_custo" in novo) novo.preco_custo = numOuNull(novo.preco_custo);
+    await supabase.from("produtos").insert(novo);
     setForm({ nome: "", categoria: categorias[0]?.nome || "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "", controla_estoque: true });
     setShowForm(false); load();
   };
@@ -156,7 +176,7 @@ export default function Estoque() {
 
   const abrirEdicao = async (p) => {
     setEditModal(p);
-    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}) });
+    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}), ...("preco_custo" in p ? { preco_custo: p.preco_custo ?? "" } : {}) });
     setReceita([]);
     const { data, error } = await supabase.from("produto_insumos").select("insumo_id, quantidade").eq("produto_id", p.id);
     setTemReceitas(!error);
@@ -167,6 +187,7 @@ export default function Estoque() {
     if (!editModal) return;
     const dados = { ...editForm, preco: Number(editForm.preco), estoque_minimo: Number(editForm.estoque_minimo) };
     if ("volume_ml" in dados) dados.volume_ml = Number(dados.volume_ml) > 0 ? Number(dados.volume_ml) : null;
+    if ("preco_custo" in dados) dados.preco_custo = numOuNull(dados.preco_custo);
     await supabase.from("produtos").update(dados).eq("id", editModal.id);
     if (temReceitas) {
       await supabase.from("produto_insumos").delete().eq("produto_id", editModal.id);
@@ -212,6 +233,7 @@ export default function Estoque() {
             {[
               { label: "Nome *", key: "nome", type: "text", placeholder: "Ex: Heineken 600ml" },
               { label: "Preço (R$) *", key: "preco", type: "number", placeholder: "0,00" },
+              ...(temCustos ? [{ label: "Custo (R$) · quanto você paga", key: "preco_custo", type: "number", placeholder: "0,00" }] : []),
               { label: "Estoque Atual", key: "estoque_atual", type: "number", placeholder: "0" },
               { label: "Estoque Mínimo", key: "estoque_minimo", type: "number", placeholder: "5" },
               { label: "Unidade", key: "unidade", type: "text", placeholder: "un, kg, l..." },
@@ -219,7 +241,7 @@ export default function Estoque() {
             ].map(f => (
               <div key={f.key}>
                 <label style={base.label}>{f.label}</label>
-                <input style={base.input} type={f.type} placeholder={f.placeholder} value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
+                <input style={base.input} type={f.type} placeholder={f.placeholder} value={form[f.key] ?? ""} onChange={e => setForm({ ...form, [f.key]: e.target.value })} />
               </div>
             ))}
             <div style={{ display: "flex", alignItems: "flex-end" }}>
@@ -275,6 +297,21 @@ export default function Estoque() {
                 <label style={base.label}>Preço (R$)</label>
                 <input style={base.input} type="number" value={editForm.preco} onChange={e => setEditForm({ ...editForm, preco: e.target.value })} />
               </div>
+              {"preco_custo" in editForm && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  {editForm.controla_estoque === false && receita.some(r => r.insumo_id) ? (() => {
+                    const c = custoDoProduto({}, receita.filter(r => r.insumo_id && Number(r.quantidade) > 0), porId);
+                    return (<div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontSize: 12, color: C.muted, marginBottom: 2 }}>Custo calculado pela receita</div>
+                      {linhaLucro(editForm.preco, c, true)}
+                    </div>);
+                  })() : (<>
+                    <label style={base.label}>Custo (R$) · quanto você paga {editForm.volume_ml ? (editForm.fracao_unidade === "un" ? "no fardo inteiro" : "na garrafa inteira") : "por unidade"}</label>
+                    <input style={base.input} type="number" placeholder="0,00" value={editForm.preco_custo} onChange={e => setEditForm({ ...editForm, preco_custo: e.target.value })} />
+                    {numOuNull(editForm.preco_custo) !== null && <div style={{ marginTop: 4 }}>{linhaLucro(editForm.preco, numOuNull(editForm.preco_custo), false)}</div>}
+                  </>)}
+                </div>
+              )}
               <div>
                 <label style={base.label}>Estoque Mínimo</label>
                 <input style={base.input} type="number" value={editForm.estoque_minimo} onChange={e => setEditForm({ ...editForm, estoque_minimo: e.target.value })} />
@@ -389,6 +426,7 @@ export default function Estoque() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ color: C.accent, fontWeight: 800, fontSize: 16 }}>{fmt(p.preco)}</div>
+                    {temCustos && linhaLucro(p.preco, custoDe(p), !!receitasTodas[p.id]?.length)}
                     <div style={{ color: esgotado ? "#a855f7" : C.text, fontWeight: 700, fontSize: 13 }}>{livre ? "—" : `${p.estoque_atual} ${p.unidade}`}</div>
                     {textoGarrafa(p) && <div style={{ color: C.muted, fontSize: 11 }}>{textoGarrafa(p)}</div>}
                   </div>
@@ -428,7 +466,7 @@ export default function Estoque() {
                 <tr key={p.id}>
                   <td style={base.td}>{p.nome}</td>
                   <td style={base.td}><span style={base.tag(C.accent)}>{p.categoria}</span></td>
-                  <td style={{ ...base.td, color: C.accent, fontWeight: 700 }}>{fmt(p.preco)}</td>
+                  <td style={{ ...base.td, color: C.accent, fontWeight: 700 }}>{fmt(p.preco)}{temCustos && linhaLucro(p.preco, custoDe(p), !!receitasTodas[p.id]?.length)}</td>
                   <td style={{ ...base.td, fontWeight: 700, color: esgotado ? "#a855f7" : C.text }}>{livre ? "—" : `${p.estoque_atual} ${p.unidade}`}{textoGarrafa(p) && <div style={{ color: C.muted, fontSize: 11, fontWeight: 400 }}>{textoGarrafa(p)}</div>}</td>
                   <td style={base.td}>{p.estoque_minimo}</td>
                   <td style={base.td}><span style={base.tag(statusCor)}>{statusLabel}</span></td>

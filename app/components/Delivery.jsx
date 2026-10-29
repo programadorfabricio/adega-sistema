@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
+import { inserirItensVenda } from "./shared/custo";
 
 const STATUS = {
   preparando: { label: "Preparando", icon: "🟡", cor: "#f5c000" },
@@ -272,10 +273,7 @@ export default function Delivery() {
     setSalvando(true);
     const { data: venda } = await supabase.from("vendas").insert({ total: e.total, forma_pagamento: pagamentoFinal, status: "concluida" }).select().single();
     if (venda) {
-      await supabase.from("venda_itens").insert((e.itens || []).map(i => ({
-        venda_id: venda.id, produto_id: i.produto_id, nome_produto: i.nome_produto,
-        quantidade: i.quantidade, preco_unitario: i.preco_unitario, subtotal: i.subtotal,
-      })));
+      await inserirItensVenda(venda.id, e.itens || []);
       await supabase.from("financeiro").insert({
         tipo: "entrada",
         descricao: `Delivery #${e.numero} - ${e.cliente_nome}${Number(e.taxa) > 0 ? ` (taxa ${fmt(e.taxa)})` : ""}`,

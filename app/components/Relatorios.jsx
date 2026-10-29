@@ -47,11 +47,24 @@ export default function Relatorios() {
   const produtosVendidos = {};
   vendas.forEach(v => {
     (v.venda_itens || []).forEach(i => {
-      if (!produtosVendidos[i.nome_produto]) produtosVendidos[i.nome_produto] = { nome: i.nome_produto, quantidade: 0, total: 0 };
-      produtosVendidos[i.nome_produto].quantidade += i.quantidade;
-      produtosVendidos[i.nome_produto].total += Number(i.subtotal);
+      if (!produtosVendidos[i.nome_produto]) produtosVendidos[i.nome_produto] = { nome: i.nome_produto, quantidade: 0, total: 0, custo: 0, totalComCusto: 0 };
+      const pv = produtosVendidos[i.nome_produto];
+      pv.quantidade += i.quantidade;
+      pv.total += Number(i.subtotal);
+      if (i.custo_unitario !== null && i.custo_unitario !== undefined) { pv.custo += Number(i.custo_unitario) * Number(i.quantidade); pv.totalComCusto += Number(i.subtotal); }
     });
   });
+  // Lucro bruto: vendido − custo dos itens com custo − descontos. Itens sem custo ficam de fora.
+  const itens = vendas.flatMap(v => v.venda_itens || []);
+  const comCusto = itens.filter(i => i.custo_unitario !== null && i.custo_unitario !== undefined);
+  const vendidoComCusto = comCusto.reduce((a, i) => a + Number(i.subtotal), 0);
+  const custoTotal = comCusto.reduce((a, i) => a + Number(i.custo_unitario) * Number(i.quantidade), 0);
+  const vendidoItens = itens.reduce((a, i) => a + Number(i.subtotal), 0);
+  const descontosProporcionais = vendidoItens > 0 ? totalDescontos * (vendidoComCusto / vendidoItens) : 0;
+  const lucroBruto = vendidoComCusto - custoTotal - descontosProporcionais;
+  const coberturaCusto = vendidoItens > 0 ? vendidoComCusto / vendidoItens : 0;
+  const mostrarLucro = comCusto.length > 0;
+
   const todosProdutos = Object.values(produtosVendidos).sort((a, b) => b.total - a.total);
   const maxProduto = todosProdutos.length > 0 ? todosProdutos[0].total : 1;
   const maxDia = porDia.length > 0 ? Math.max(...porDia.map(d => d.total)) : 1;
@@ -78,9 +91,10 @@ export default function Relatorios() {
       {!loading && (
         <>
           {/* Cards resumo */}
-          <div className="rel-grid4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}>
+          <div className="rel-grid4" style={{ display: "grid", gridTemplateColumns: `repeat(${mostrarLucro ? 5 : 4},1fr)`, gap: 14, marginBottom: 20 }}>
             {[
               { label: "Total Faturado", val: fmt(totalGeral), sub: totalDescontos > 0 ? `descontos dados: ${fmt(totalDescontos)}` : "", color: C.accent, icon: "💰" },
+              ...(mostrarLucro ? [{ label: "Lucro Bruto", val: fmt(lucroBruto), sub: coberturaCusto < 0.999 ? `só ${Math.round(coberturaCusto * 100)}% do vendido tem custo cadastrado` : `margem ${vendidoComCusto > 0 ? Math.round((lucroBruto / (vendidoComCusto - descontosProporcionais || 1)) * 100) : 0}%`, color: C.green, icon: "📈" }] : []),
               { label: "Nº de Vendas", val: vendas.length, color: C.blue, icon: "🧾" },
               { label: "Ticket Médio", val: fmt(ticketMedio), color: C.green, icon: "📊" },
               { label: "Melhor Dia", val: porDia.length > 0 ? fmt(Math.max(...porDia.map(d => d.total))) : "R$ 0,00", sub: porDia.length > 0 ? new Date(porDia.reduce((a, b) => a.total > b.total ? a : b).dia + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }).replace(/^/, "📅 ") : "", color: "#f97316", icon: "🏆" },
@@ -167,6 +181,9 @@ export default function Relatorios() {
                     </div>
                     <div style={{ fontSize: 11, color: C.muted }}>
                       {totalGeral > 0 ? ((p.total / totalGeral) * 100).toFixed(1) : 0}% do faturamento · preço médio unitário: {fmt(p.total / p.quantidade)}
+                      {mostrarLucro && (p.totalComCusto > 0
+                        ? <span style={{ color: C.green }}> · lucro {fmt(p.totalComCusto - p.custo)} ({Math.round(((p.totalComCusto - p.custo) / p.totalComCusto) * 100)}%)</span>
+                        : <span> · sem custo</span>)}
                     </div>
                   </div>
                 </div>

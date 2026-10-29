@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
+import { inserirItensVenda } from "./shared/custo";
 import { CampoDesconto, calcDesconto, inserirVenda, reajustarLinhas, num } from "./shared/pagamento";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -465,7 +466,7 @@ export default function Comandas({ usuario }) {
       const total = Math.round((subtotal - desconto) * 100) / 100;
       const { venda, forma } = await inserirVenda({ total, desconto, pagamentos: pagamentos || [{ forma: pagamento, valor: total }] });
       if (venda) {
-        await supabase.from("venda_itens").insert(itens.map(i => ({ venda_id: venda.id, produto_id: i.produto_id, nome_produto: i.produtos?.nome || "", quantidade: i.quantidade, preco_unitario: i.preco_unitario, subtotal: i.subtotal })));
+        await inserirItensVenda(venda.id, itens.map(i => ({ produto_id: i.produto_id, nome_produto: i.produtos?.nome || "", quantidade: i.quantidade, preco_unitario: i.preco_unitario, subtotal: i.subtotal })));
         await supabase.from("financeiro").insert({ tipo: "entrada", descricao: `Comanda - ${selected.nome_cliente}${desconto > 0 ? ` (desconto ${fmt(desconto)})` : ""}`, valor: total, categoria: "venda" });
       }
       await supabase.from("comandas").update({ status: "fechada", total, forma_pagamento: forma }).eq("id", selected.id);
@@ -498,7 +499,7 @@ export default function Comandas({ usuario }) {
       const quitou = v >= saldo - 0.009;
       const { data: venda } = await supabase.from("vendas").insert({ total: v, forma_pagamento: forma, status: "concluida" }).select().single();
       if (venda && quitou && itens.length) {
-        await supabase.from("venda_itens").insert(itens.map(i => ({ venda_id: venda.id, produto_id: i.produto_id, nome_produto: i.produtos?.nome || "", quantidade: i.quantidade, preco_unitario: i.preco_unitario, subtotal: i.subtotal })));
+        await inserirItensVenda(venda.id, itens.map(i => ({ produto_id: i.produto_id, nome_produto: i.produtos?.nome || "", quantidade: i.quantidade, preco_unitario: i.preco_unitario, subtotal: i.subtotal })));
       }
       await supabase.from("financeiro").insert({ tipo: "entrada", descricao: `Fiado - ${selected.nome_cliente}${quitou ? "" : " (parcial)"}`, valor: v, categoria: "venda" });
       const pago = Math.round((Number(selected.valor_pago || 0) + v) * 100) / 100;

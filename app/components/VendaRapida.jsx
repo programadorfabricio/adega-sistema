@@ -4,6 +4,7 @@ import { supabase, C, base, fmt, SCHEMA, semEstoque } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { useCaixaAberto } from "./Caixa";
+import { inserirItensVenda } from "./shared/custo";
 import { FORMAS_PAG, CampoDesconto, PagamentoDividido, calcDesconto, inserirVenda, linhasIniciais, linhasBatem, reajustarLinhas, num } from "./shared/pagamento";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -117,7 +118,7 @@ export default function VendaRapida({ setPage }) {
     const pagamentos = dividir ? linhas : [{ forma: pagamento, valor: total }];
     const { venda } = await inserirVenda({ total, desconto, pagamentos });
     if (venda) {
-      await supabase.from("venda_itens").insert(carrinho.map(i => ({ ...i, venda_id: venda.id })));
+      await inserirItensVenda(venda.id, carrinho);
       await supabase.from("financeiro").insert({ tipo: "entrada", descricao: desconto > 0 ? `Venda Rápida (desconto ${fmt(desconto)})` : "Venda Rápida", valor: total, categoria: "venda" });
       await movimentarEstoque(carrinho, -1);
     }
