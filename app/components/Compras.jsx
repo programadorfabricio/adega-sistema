@@ -196,16 +196,25 @@ export default function Compras() {
 
       {aba === "compras" && (
         <>
-          <div className="grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
+          <style>{`
+            @media (max-width: 768px) {
+              .compras-resumo { gap: 6px !important; }
+              .compras-resumo > div { padding: 10px 8px !important; }
+              .compras-resumo .r-label { font-size: 9px !important; letter-spacing: 0.02em !important; min-height: 22px; }
+              .compras-resumo .r-val { font-size: 15px !important; }
+              .compras-resumo .r-sub { font-size: 10px !important; }
+            }
+          `}</style>
+          <div className="compras-resumo" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
             {[
               { label: "Comprado no mês", val: fmt(compradoMes), cor: C.accent, sub: `${compras.length} compra${compras.length === 1 ? "" : "s"}` },
               { label: "A pagar a fornecedores", val: fmt(totalAPagar), cor: totalAPagar > 0 ? C.red : C.green, sub: `${aPagar.length} em aberto` },
               { label: "Vence em até 7 dias", val: fmt(vencendo.reduce((a, c) => a + Number(c.total), 0)), cor: vencendo.length ? C.red : C.muted, sub: vencendo.length ? `${vencendo.length} conta(s)` : "nada vencendo" },
             ].map(s => (
               <div key={s.label} style={base.card}>
-                <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{s.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 900, color: s.cor }}>{s.val}</div>
-                <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{s.sub}</div>
+                <div className="r-label" style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{s.label}</div>
+                <div className="r-val" style={{ fontSize: 22, fontWeight: 900, color: s.cor, whiteSpace: "nowrap" }}>{s.val}</div>
+                <div className="r-sub" style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{s.sub}</div>
               </div>
             ))}
           </div>

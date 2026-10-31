@@ -54,7 +54,7 @@ export const C = {
 };
 
 // ─── UTILS ────────────────────────────────────────────────
-export const fmt = (v) => `R$ ${Number(v || 0).toFixed(2).replace(".", ",")}`;
+export const fmt = (v) => `R$ ${Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export const today = () => new Date().toISOString().split("T")[0];
 export const hora = (d) => new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 export const dataHora = (d) => new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });

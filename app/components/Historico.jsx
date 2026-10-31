@@ -53,7 +53,7 @@ export default function Historico() {
 
   const vendasFiltradas = vendas
     .filter(v => filtroPagamento === "todos" || partesDaVenda(v).some(p => p.forma === filtroPagamento))
-    .filter(v => !busca || fmt(v.total).includes(busca) || v.forma_pagamento?.includes(busca.toLowerCase()))
+    .filter(v => !busca || fmt(v.total).includes(busca) || Number(v.total).toFixed(2).replace(".", ",").includes(busca) || v.forma_pagamento?.includes(busca.toLowerCase()))
     .filter(v => !dataInicio || v.created_at?.slice(0, 10) >= dataInicio)
     .filter(v => !dataFim || v.created_at?.slice(0, 10) <= dataFim);
 
