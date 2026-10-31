@@ -195,6 +195,8 @@ export const PAGES = [
   { id: "delivery", label: "Delivery", icon: "🛵", group: "PRINCIPAL", cargos: ["admin", "gerente", "atendente"] },
   { id: "caixa", label: "Caixa", icon: "🧾", group: "PRINCIPAL", cargos: ["admin", "gerente", "atendente"] },
   { id: "estoque", label: "Estoque", icon: "📦", group: "GESTÃO", cargos: ["admin", "gerente"] },
+  // requer: só aparece se a loja tiver essa tabela (módulo ativado no banco)
+  { id: "compras", label: "Compras", icon: "🚚", group: "GESTÃO", cargos: ["admin", "gerente"], requer: "compras" },
   { id: "financeiro", label: "Financeiro", icon: "💰", group: "GESTÃO", cargos: ["admin", "gerente"] },
   { id: "historico", label: "Histórico", icon: "📋", group: "GESTÃO", cargos: ["admin", "gerente"] },
   { id: "relatorios", label: "Relatórios", icon: "📈", group: "GESTÃO", cargos: ["admin", "gerente"] },

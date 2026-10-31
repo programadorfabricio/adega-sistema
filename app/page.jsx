@@ -12,6 +12,7 @@ import Configuracoes from "./components/Configuracoes";
 import Comandas from "./components/Comandas";
 import Delivery from "./components/Delivery";
 import Caixa from "./components/Caixa";
+import Compras from "./components/Compras";
 import LogoMarca from "./components/shared/LogoMarca";
 import { useAssinatura, FaixaMensalidade, BloqueioMensalidade } from "./components/shared/AvisoMensalidade";
 
@@ -134,7 +135,7 @@ export default function App() {
 
   const handleLogin = (user) => {
     setUsuario(user);
-    const primeira = PAGES.find(p => p.cargos.includes(user.cargo) && !PAGINAS_OCULTAS.includes(p.id));
+    const primeira = PAGES.find(p => p.cargos.includes(user.cargo) && !PAGINAS_OCULTAS.includes(p.id) && !p.requer);
     setPage(primeira?.id || "dashboard");
   };
 
@@ -149,6 +150,7 @@ export default function App() {
       case "delivery": return <Delivery />;
       case "caixa": return <Caixa usuario={usuario} />;
       case "estoque": return <Estoque />;
+      case "compras": return <Compras usuario={usuario} />;
       case "financeiro": return <Financeiro />;
       case "historico": return <Historico />;
       case "relatorios": return <Relatorios />;

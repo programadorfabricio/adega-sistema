@@ -18,7 +18,8 @@ declare
     'comandas','comanda_itens','financeiro','usuarios','configuracoes',
     'bairros','entregas',          -- delivery (rode supabase/delivery.sql uma vez antes)
     'caixas','caixa_movimentos',   -- caixa (rode supabase/caixa.sql uma vez antes)
-    'produto_insumos'              -- dose fracionada (rode supabase/fracionado.sql uma vez antes)
+    'produto_insumos',             -- dose fracionada (rode supabase/fracionado.sql uma vez antes)
+    'fornecedores','compras','compra_itens'  -- compras (rode supabase/compras.sql uma vez antes)
   ];
   t   text;
   fk  record;

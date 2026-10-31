@@ -1,9 +1,19 @@
 "use client";
-import { C, base, PAGES, MARCA, PAGINAS_OCULTAS } from "./shared/constants";
+import { useState, useEffect } from "react";
+import { supabase, C, base, PAGES, MARCA, PAGINAS_OCULTAS } from "./shared/constants";
 import LogoMarca from "./shared/LogoMarca";
 
 export default function Sidebar({ page, setPage, open, setOpen, usuario, onLogout }) {
-  const pages = PAGES.filter(p => p.cargos.includes(usuario?.cargo) && !PAGINAS_OCULTAS.includes(p.id));
+  // Módulos opcionais: o item só aparece se a tabela existe nesta loja
+  const [modulos, setModulos] = useState({});
+  useEffect(() => {
+    let ativo = true;
+    for (const p of PAGES.filter(x => x.requer)) {
+      supabase.from(p.requer).select("id").limit(1).then(({ error }) => { if (ativo) setModulos(m => ({ ...m, [p.id]: !error })); });
+    }
+    return () => { ativo = false; };
+  }, []);
+  const pages = PAGES.filter(p => p.cargos.includes(usuario?.cargo) && !PAGINAS_OCULTAS.includes(p.id) && (!p.requer || modulos[p.id]));
   const groups = [...new Set(pages.map(p => p.group))];
   const navigate = (id) => { setPage(id); setOpen(false); };
   const cargoCor = { admin: C.accent, gerente: C.blue, atendente: C.green };
