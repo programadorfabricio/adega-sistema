@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, SCHEMA, semEstoque } from "./shared/constants";
+import { supabase, C, base, fmt, SCHEMA, semEstoque, CARRINHO_LARGO } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { useCaixaAberto } from "./Caixa";
@@ -149,7 +149,7 @@ export default function VendaRapida({ setPage }) {
         </div>
       )}
 
-      <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+      <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: CARRINHO_LARGO ? "1fr minmax(380px, 44%)" : "1fr 320px", gap: 16 }}>
         {/* Produtos */}
         <div>
           <div style={{ ...base.card, marginBottom: 12 }}>
@@ -178,7 +178,7 @@ export default function VendaRapida({ setPage }) {
                       const esgotado = !livre && disponivelReal <= 0;
                       return (
                         <button key={p.id} onClick={() => add(p)} disabled={esgotado}
-                          style={{ background: esgotado ? "#111100" : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative" }}>
+                          style={{ background: esgotado ? C.esgotado : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative" }}>
                           {esgotado && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>ESGOTADO</div>}
                           <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
                           <div style={{ fontSize: 13, color: esgotado ? C.muted : C.accent, fontWeight: 800 }}>{fmt(p.preco)}</div>

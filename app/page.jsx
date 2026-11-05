@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, C, base, PAGES, MARCA, PAGINAS_OCULTAS } from "./components/shared/constants";
+import { supabase, C, base, PAGES, MARCA, PAGINAS_OCULTAS, ESCALA } from "./components/shared/constants";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import VendaRapida from "./components/VendaRapida";
@@ -59,7 +59,7 @@ function LoginScreen({ onLogin }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit', sans-serif", padding: 20 }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-      <div style={{ width: "100%", maxWidth: 400 }}>
+      <div style={{ width: "100%", maxWidth: 400, zoom: ESCALA }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <LogoMarca size={96} emojiSize={52} marginBottom={8} />
           <div style={{ fontSize: 24, fontWeight: 900, color: C.accent }}>{MARCA.nome}</div>
@@ -201,7 +201,7 @@ export default function App() {
             .page-anim { animation: fadeSlide 0.22s ease; }
           `}</style>
           {assinatura && <FaixaMensalidade key={assinatura.vencimento} info={assinatura} />}
-          <div key={page} className="page-anim">
+          <div key={page} className="page-anim" style={ESCALA !== 1 ? { zoom: ESCALA } : undefined}>
             {renderPage()}
           </div>
         </div>

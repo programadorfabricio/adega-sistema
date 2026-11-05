@@ -34,3 +34,14 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Aparência por cliente (variáveis na Vercel do cliente)
+
+Só valem no deploy em que forem definidas; os outros clientes não mudam.
+
+| Variável | Efeito |
+|---|---|
+| `NEXT_PUBLIC_TEMA=claro` | Fundo claro (padrão: escuro) |
+| `NEXT_PUBLIC_ESCALA=1.15` | Letras e botões maiores (0.8 a 1.5) |
+| `NEXT_PUBLIC_HORARIOS=1` | Cada item lançado na comanda vira uma linha com a hora (também na impressão) |
+| `NEXT_PUBLIC_CARRINHO_LARGO=1` | Carrinho da Venda Rápida mais largo |

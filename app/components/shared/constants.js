@@ -30,7 +30,17 @@ export const resumoNomes = (lista, max = 6) => {
   return nomes.length <= max ? nomes.join(", ") : `${nomes.slice(0, max).join(", ")} e mais ${nomes.length - max}`;
 };
 
-const ACCENT = process.env.NEXT_PUBLIC_COR_DESTAQUE || "#f5c000";
+// ─── APARÊNCIA (por cliente, no deploy da Vercel) ─────────
+// NEXT_PUBLIC_TEMA=claro          → fundo claro (padrão: escuro)
+// NEXT_PUBLIC_ESCALA=1.15         → letras e botões maiores (0.8 a 1.5)
+// NEXT_PUBLIC_HORARIOS=1          → hora em cada item lançado na comanda
+// NEXT_PUBLIC_CARRINHO_LARGO=1    → carrinho da Venda Rápida mais largo
+export const TEMA = process.env.NEXT_PUBLIC_TEMA === "claro" ? "claro" : "escuro";
+export const ESCALA = Math.min(1.5, Math.max(0.8, Number(process.env.NEXT_PUBLIC_ESCALA) || 1));
+export const MOSTRAR_HORARIOS = process.env.NEXT_PUBLIC_HORARIOS === "1";
+export const CARRINHO_LARGO = process.env.NEXT_PUBLIC_CARRINHO_LARGO === "1";
+
+const ACCENT = process.env.NEXT_PUBLIC_COR_DESTAQUE || (TEMA === "claro" ? "#d97706" : "#f5c000");
 const hexToRgba = (hex, a) => {
   const h = hex.replace("#", "");
   const n = parseInt(h.length === 3 ? h.split("").map(c => c + c).join("") : h, 16);
@@ -38,19 +48,38 @@ const hexToRgba = (hex, a) => {
 };
 
 // ─── CORES ────────────────────────────────────────────────
-export const C = {
+const ESCURO = {
   bg: "#0a0900",
   card: "#131200",
   card2: "#1a1800",
   border: "#2a2700",
-  accent: ACCENT,
   accentDark: "#c49a00",
-  accentBg: hexToRgba(ACCENT, 0.08),
   green: "#22c55e",
   red: "#ef4444",
   blue: "#3b82f6",
   text: "#f5f0e0",
   muted: "#7a7560",
+  esgotado: "#111100",
+  overlay: "rgba(0,0,0,0.85)",
+};
+const CLARO = {
+  bg: "#f4f2ec",
+  card: "#ffffff",
+  card2: "#f3f0e8",
+  border: "#ddd7c6",
+  accentDark: "#b45309",
+  green: "#16a34a",
+  red: "#dc2626",
+  blue: "#2563eb",
+  text: "#1f1c14",
+  muted: "#6b6452",
+  esgotado: "#ebe8df",
+  overlay: "rgba(30,25,10,0.55)",
+};
+export const C = {
+  ...(TEMA === "claro" ? CLARO : ESCURO),
+  accent: ACCENT,
+  accentBg: hexToRgba(ACCENT, TEMA === "claro" ? 0.12 : 0.08),
 };
 
 // ─── UTILS ────────────────────────────────────────────────
@@ -62,29 +91,29 @@ export const dataHora = (d) => new Date(d).toLocaleString("pt-BR", { day: "2-dig
 // ─── ESTILOS BASE ─────────────────────────────────────────
 export const base = {
   input: {
-    background: "#1a1800",
-    border: `1px solid #2a2700`,
+    background: C.card2,
+    border: `1px solid ${C.border}`,
     borderRadius: 8,
     padding: "10px 14px",
-    color: "#f5f0e0",
+    color: C.text,
     fontSize: 14,
     width: "100%",
     outline: "none",
     boxSizing: "border-box",
   },
   select: {
-    background: "#1a1800",
-    border: `1px solid #2a2700`,
+    background: C.card2,
+    border: `1px solid ${C.border}`,
     borderRadius: 8,
     padding: "10px 14px",
-    color: "#f5f0e0",
+    color: C.text,
     fontSize: 14,
     width: "100%",
     outline: "none",
   },
   card: {
-    background: "#131200",
-    border: `1px solid #2a2700`,
+    background: C.card,
+    border: `1px solid ${C.border}`,
     borderRadius: 16,
     padding: 20,
   },
@@ -111,14 +140,14 @@ export const base = {
   }),
   btnOutline: {
     background: "transparent",
-    border: `1px solid #2a2700`,
+    border: `1px solid ${C.border}`,
     borderRadius: 8,
     padding: "10px 18px",
-    color: "#7a7560",
+    color: C.muted,
     fontSize: 14,
     cursor: "pointer",
   },
-  label: { fontSize: 12, color: "#7a7560", marginBottom: 4, display: "block" },
+  label: { fontSize: 12, color: C.muted, marginBottom: 4, display: "block" },
   tag: (color) => ({
     background: `${color}20`,
     color,
@@ -132,48 +161,48 @@ export const base = {
   th: {
     textAlign: "left",
     fontSize: 11,
-    color: "#7a7560",
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.1em",
     padding: "10px 14px",
-    borderBottom: `1px solid #2a2700`,
+    borderBottom: `1px solid ${C.border}`,
   },
   td: {
     padding: "12px 14px",
     fontSize: 14,
-    borderBottom: `1px solid #2a270020`,
-    color: "#f5f0e0",
+    borderBottom: `1px solid ${C.border}${TEMA === "claro" ? "" : "20"}`,
+    color: C.text,
   },
   modal: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,0.85)",
+    background: C.overlay,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 100,
   },
   modalBox: {
-    background: "#131200",
-    border: `1px solid #2a2700`,
+    background: C.card,
+    border: `1px solid ${C.border}`,
     borderRadius: 18,
     padding: 28,
     width: "100%",
     maxWidth: 480,
-    maxHeight: "90vh",
+    maxHeight: `${Math.round(90 / ESCALA)}vh`,
     overflowY: "auto",
   },
   row: { display: "flex", gap: 10, alignItems: "center" },
-  pageTitle: { fontSize: 22, fontWeight: 800, color: "#f5f0e0", marginBottom: 20 },
+  pageTitle: { fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 20 },
   sectionTitle: {
     fontSize: 11,
     fontWeight: 700,
-    color: "#7a7560",
+    color: C.muted,
     textTransform: "uppercase",
     letterSpacing: "0.12em",
     marginBottom: 12,
   },
-  alert: (color = "#ef4444") => ({
+  alert: (color = C.red) => ({
     background: `${color}15`,
     border: `1px solid ${color}40`,
     borderRadius: 10,

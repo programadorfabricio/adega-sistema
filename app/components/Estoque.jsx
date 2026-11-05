@@ -204,7 +204,7 @@ export default function Estoque() {
   };
 
   // Estilo das <option> para forçar cores corretas em todos os navegadores
-  const optionStyle = { background: "#1a1800", color: "#f5f0e0" };
+  const optionStyle = { background: C.card2, color: C.text };
 
   return (
     <div>

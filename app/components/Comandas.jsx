@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque } from "./shared/constants";
+import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, MOSTRAR_HORARIOS, dataHora } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { inserirItensVenda } from "./shared/custo";
@@ -305,11 +305,16 @@ function ModalPendurar({ selected, erro, onConfirmar, onCancelar }) {
 }
 
 // ─── COMANDAS ────────────────────────────────────────────
+// Hora do lançamento; se foi em outro dia (fiado), mostra a data também
+const quandoLancou = (d) => new Date(d).toDateString() === new Date().toDateString() ? hora(d) : dataHora(d);
+
 export default function Comandas({ usuario }) {
   const [comandas, setComandas] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [selected, setSelected] = useState(null);
   const [itens, setItens] = useState([]);
+  // Ordem em que foram lançados (mais antigo primeiro) quando os horários estão ligados
+  const itensOrdem = MOSTRAR_HORARIOS ? [...itens].sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || ""))) : itens;
   const [modalNova, setModalNova] = useState(false);
   const [modalPedido, setModalPedido] = useState(false);
   const [modalFechar, setModalFechar] = useState(false);
@@ -420,7 +425,8 @@ export default function Comandas({ usuario }) {
     const { data: prodAtual } = await supabase.from("produtos").select("*").eq("id", produto.id).single();
     if (!prodAtual || (!semEstoque(prodAtual) && prodAtual.estoque_atual <= 0)) { atualizandoManual.current = false; setAdicionando(false); return; }
 
-    const existente = itens.find(i => i.produto_id === produto.id);
+    // Com horários ligados, cada lançamento vira uma linha própria (guarda a hora de cada pedido)
+    const existente = MOSTRAR_HORARIOS ? null : itens.find(i => i.produto_id === produto.id);
     if (existente) {
       await supabase.from("comanda_itens").update({ quantidade: existente.quantidade + 1, subtotal: (existente.quantidade + 1) * Number(produto.preco) }).eq("id", existente.id);
     } else {
@@ -564,9 +570,9 @@ export default function Comandas({ usuario }) {
         <div class="row"><span>Data/Hora:</span><span>${agora}</span></div>
         <div class="linha"></div>
         <div class="bold" style="margin-bottom:4px;">ITENS:</div>
-        ${itens.map(i => `
+        ${itensOrdem.map(i => `
           <div class="row">
-            <span>${i.produtos?.nome || i.nome_produto}</span>
+            <span>${MOSTRAR_HORARIOS && i.created_at ? hora(i.created_at) + " " : ""}${i.produtos?.nome || i.nome_produto}</span>
             <span>${i.quantidade}x</span>
           </div>
           <div class="row" style="padding-left:10px; color:#444;">
@@ -702,11 +708,11 @@ export default function Comandas({ usuario }) {
 
               {/* Cards mobile */}
               <div className="comanda-cards" style={{ flexDirection: "column", gap: 10, display: "none" }}>
-                {itens.map(i => (
+                {itensOrdem.map(i => (
                   <div key={i.id} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 2 }}>{i.produtos?.nome || "—"}</div>
-                      <div style={{ fontSize: 12, color: C.muted }}>{i.quantidade}x · {fmt(i.preco_unitario)}</div>
+                      <div style={{ fontSize: 12, color: C.muted }}>{i.quantidade}x · {fmt(i.preco_unitario)}{MOSTRAR_HORARIOS && i.created_at ? ` · 🕒 ${quandoLancou(i.created_at)}` : ""}</div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                       <span style={{ fontWeight: 800, color: C.accent, fontSize: 15 }}>{fmt(i.subtotal)}</span>
@@ -721,6 +727,7 @@ export default function Comandas({ usuario }) {
               <table className="comanda-table" style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
+                    {MOSTRAR_HORARIOS && <th style={base.th}>Lançado</th>}
                     <th style={base.th}>Produto</th>
                     <th style={base.th}>Qtd</th>
                     <th style={base.th}>Unit.</th>
@@ -729,8 +736,9 @@ export default function Comandas({ usuario }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {itens.map(i => (
+                  {itensOrdem.map(i => (
                     <tr key={i.id}>
+                      {MOSTRAR_HORARIOS && <td style={{ ...base.td, color: C.muted, whiteSpace: "nowrap" }}>{i.created_at ? quandoLancou(i.created_at) : "—"}</td>}
                       <td style={base.td}>{i.produtos?.nome || "—"}</td>
                       <td style={base.td}>{i.quantidade}</td>
                       <td style={base.td}>{fmt(i.preco_unitario)}</td>
@@ -738,7 +746,7 @@ export default function Comandas({ usuario }) {
                       <td style={base.td}><button style={base.btnSm(C.red, "#fff")} onClick={() => { setModalPin(i); setPinDigitado(""); }}>✕</button></td>
                     </tr>
                   ))}
-                  {itens.length === 0 && <tr><td colSpan={5} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum item ainda</td></tr>}
+                  {itens.length === 0 && <tr><td colSpan={MOSTRAR_HORARIOS ? 6 : 5} style={{ ...base.td, color: C.muted, textAlign: "center" }}>Nenhum item ainda</td></tr>}
                 </tbody>
               </table>
 
@@ -854,7 +862,7 @@ export default function Comandas({ usuario }) {
                       return (
                         <button key={p.id}
                           onClick={() => !esgotado && adicionarItem(p)}
-                          style={{ background: esgotado ? "#111100" : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative" }}>
+                          style={{ background: esgotado ? C.esgotado : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative" }}>
                           {esgotado && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: "#a855f7", background: "#a855f720", padding: "2px 6px", borderRadius: 4 }}>ESGOTADO</div>}
                           {adicionando && ultimoAdicionado === null && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 10, fontWeight: 700, color: C.accent, background: `${C.accent}20`, padding: "2px 6px", borderRadius: 4 }}>...</div>}
                           <div style={{ fontSize: 13, fontWeight: 600, color: esgotado ? C.muted : C.text, marginBottom: 2 }}>{p.nome}</div>
