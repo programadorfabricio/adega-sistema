@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque } from "./shared/constants";
+import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, PEDIDO_ONLINE } from "./shared/constants";
+import PedidosOnline from "./delivery/PedidosOnline";
 import { movimentarEstoque } from "./shared/estoque";
 import { inserirItensVenda } from "./shared/custo";
 
@@ -332,6 +333,8 @@ export default function Delivery() {
       </div>
 
       {aviso && <div style={base.alert(C.green)}>✅ {aviso}</div>}
+
+      {PEDIDO_ONLINE && <PedidosOnline onMudou={() => { load(); loadProdutos(); }} />}
 
       <div className="grid-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
         {[
