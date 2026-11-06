@@ -22,6 +22,7 @@ export default function AcompanharPage() {
 
 function Acompanhar() {
   const id = useSearchParams().get("id") || "";
+  const idValido = /^[0-9a-f-]{36}$/i.test(id);
   const [pedido, setPedido] = useState(undefined); // undefined = carregando, null = não achou
   const [config, setConfig] = useState({});
 
@@ -30,7 +31,7 @@ function Acompanhar() {
   }, []);
 
   useEffect(() => {
-    if (!/^[0-9a-f-]{36}$/i.test(id)) { setPedido(null); return; }
+    if (!idValido) return;
     let ativo = true;
     const buscar = async () => {
       const { data } = await supabase.rpc("status_pedido_online", { p_id: id });
@@ -39,7 +40,7 @@ function Acompanhar() {
     buscar();
     const t = setInterval(buscar, 15000);
     return () => { ativo = false; clearInterval(t); };
-  }, [id]);
+  }, [id, idValido]);
 
   const nomeLoja = config.nome_estabelecimento || MARCA.nome;
   const whats = (config.telefone || "").replace(/\D/g, "");
@@ -48,6 +49,7 @@ function Acompanhar() {
   const pagina = { minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Outfit', sans-serif" };
   const miolo = { maxWidth: 480, margin: "0 auto", padding: "24px 16px", zoom: ESCALA !== 1 ? ESCALA : undefined };
 
+  if (!idValido) return <div style={{ ...pagina, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted }}>Pedido não encontrado. <a href="/pedir" style={{ color: C.accent, marginLeft: 6 }}>Fazer um pedido</a></div>;
   if (pedido === undefined) return <div style={{ ...pagina, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted }}>Carregando…</div>;
 
   return (

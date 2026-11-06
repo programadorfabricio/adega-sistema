@@ -45,3 +45,18 @@ Só valem no deploy em que forem definidas; os outros clientes não mudam.
 | `NEXT_PUBLIC_ESCALA=1.15` | Letras e botões maiores (0.8 a 1.5) |
 | `NEXT_PUBLIC_HORARIOS=1` | Cada item lançado na comanda vira uma linha com a hora (também na impressão) |
 | `NEXT_PUBLIC_CARRINHO_LARGO=1` | Carrinho da Venda Rápida mais largo |
+
+## Pedido online (cardápio → Delivery)
+
+O cliente pede em `<endereço da adega>/pedir` e o pedido aparece em **Delivery → 🔔 Pedidos online**.
+A adega aceita (o estoque baixa nessa hora) ou recusa (com motivo; o cliente vê no acompanhamento).
+Pagamento é na entrega (dinheiro com troco, Pix ou cartão). Desligado por padrão.
+
+Para ligar numa adega:
+1. Supabase → SQL Editor: rode `supabase/pedido-online.sql` trocando `alvo` pelo schema da adega.
+2. Vercel da adega: `NEXT_PUBLIC_PEDIDO_ONLINE=1` e redeploy.
+3. No Delivery, copie o link do cardápio e mande pro cliente divulgar.
+
+Teste local: `supabase/testes/pedido-online.test.sql` (funções do banco),
+`node --test scripts/carrinho.test.mjs` (carrinho) e
+`NODE_PATH=$(npm root -g) node scripts/e2e-pedido.cjs` (fluxo completo).

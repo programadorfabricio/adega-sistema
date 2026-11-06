@@ -81,8 +81,87 @@ async function testeDelivery(browser) {
   console.log("OK delivery: aceitar (1x), recusar, liga/desliga");
 }
 
+async function clientePede(browser, { bloquearStorage = false, nome }) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  if (bloquearStorage) {
+    await ctx.addInitScript(() => {
+      Object.defineProperty(window, "localStorage", { get() { throw new Error("bloqueado"); } });
+    });
+  }
+  const page = await ctx.newPage();
+  const erros = []; page.on("pageerror", e => erros.push(String(e)));
+  await page.goto(`${APP}/pedir`);
+  await page.getByText("Cerveja E2E").waitFor();
+  await page.getByRole("button", { name: "Adicionar Cerveja E2E" }).click();
+  await page.getByRole("button", { name: "Mais Cerveja E2E" }).click();
+  await page.getByRole("button", { name: "Adicionar Copão E2E" }).click();
+  await page.getByRole("button", { name: /Continuar/ }).click();
+  await page.getByLabel("Seu nome").fill(nome);
+  await page.getByLabel("WhatsApp (com DDD)").fill("(19) 98888-7777");
+  await page.getByLabel("Endereço (rua e número)").fill("Rua das Flores, 123");
+  await page.getByLabel("Bairro").selectOption("Centro");
+  await page.getByText("Pix na entrega").click();
+  // total na tela: 2×10 + 30 + 7 = 57
+  assert.ok(await page.getByText("R$ 57,00").first().isVisible(), "total 57 deveria aparecer na finalização");
+  await page.getByRole("button", { name: "Enviar pedido" }).dblclick();
+  await page.waitForURL(/\/pedir\/acompanhar\?id=/, { timeout: 10000 });
+  await page.locator("[data-status='novo']").waitFor();
+  const id = new URL(page.url()).searchParams.get("id");
+  return { ctx, page, id, erros };
+}
+
 async function testeTudo(browser) {
-  // Preenchido na Task 4
+  preparar();
+  const cli = await clientePede(browser, { nome: "Carlos E2E" });
+  assert.equal(sql(`select count(*) from ${S}.entregas where cliente_nome = 'Carlos E2E'`), "1", "clique duplo em Enviar não pode criar 2 pedidos");
+  assert.equal(sql(`select total from ${S}.entregas where id = '${cli.id}'`), "57.00");
+  if (process.env.SHOTS) await cli.page.screenshot({ path: `${process.env.SHOTS}/acompanhar.png` });
+
+  // Adega aceita, sai e entrega
+  const adm = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+  const erros = []; adm.on("pageerror", e => erros.push(String(e)));
+  await entrar(adm);
+  if (process.env.SHOTS) await adm.screenshot({ path: `${process.env.SHOTS}/delivery.png` });
+  await adm.locator("[data-pedido]", { hasText: "Carlos E2E" }).getByRole("button", { name: /Aceitar/ }).click();
+  await adm.waitForTimeout(2000);
+  assert.equal(estoque("Cerveja E2E"), 8);
+
+  await cli.page.reload();
+  await cli.page.locator("[data-status='preparando']").waitFor({ timeout: 8000 });
+
+  await adm.getByRole("button", { name: "🛵 Saiu" }).first().click();
+  const modalSaiu = adm.getByRole("button", { name: "Saiu pra entrega" });
+  if (await modalSaiu.isVisible().catch(() => false)) await modalSaiu.click();
+  await adm.waitForTimeout(1500);
+  await cli.page.reload();
+  await cli.page.locator("[data-status='saiu']").waitFor({ timeout: 8000 });
+
+  await adm.getByRole("button", { name: "✅ Entregue" }).first().click();
+  await adm.getByRole("button", { name: "Confirmar" }).click();
+  await adm.waitForTimeout(2000);
+  const venda = sql(`select v.total from ${S}.entregas e join ${S}.vendas v on v.id = e.venda_id where e.id = '${cli.id}'`);
+  assert.equal(Number(venda), 57, "a venda no caixa deveria ter o mesmo total");
+  await cli.page.reload();
+  await cli.page.locator("[data-status='entregue']").waitFor({ timeout: 8000 });
+  assert.deepEqual([...cli.erros, ...erros], [], "erros nas páginas");
+  await cli.ctx.close(); await adm.close();
+
+  // Aba anônima / armazenamento bloqueado: o pedido envia mesmo assim
+  const anon = await clientePede(browser, { nome: "Duda E2E", bloquearStorage: true });
+  assert.deepEqual(anon.erros, [], `erros com storage bloqueado: ${anon.erros}`);
+  await anon.ctx.close();
+
+  // Loja fechada: página avisa e não deixa continuar
+  sql(`update ${S}.configuracoes set pedido_online_aberto = false`);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const pg = await ctx.newPage();
+  await pg.goto(`${APP}/pedir`);
+  await pg.getByText("Fechado no momento").waitFor();
+  if (process.env.SHOTS) await pg.screenshot({ path: `${process.env.SHOTS}/fechado.png` });
+  assert.ok(await pg.getByRole("button", { name: "Adicionar Cerveja E2E" }).isDisabled());
+  sql(`update ${S}.configuracoes set pedido_online_aberto = true`);
+  await ctx.close();
+  console.log("OK tudo: pedido → aceitar → saiu → entregue → caixa; storage bloqueado; loja fechada");
 }
 
 (async () => {
