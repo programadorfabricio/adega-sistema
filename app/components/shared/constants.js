@@ -39,6 +39,8 @@ export const TEMA = process.env.NEXT_PUBLIC_TEMA === "claro" ? "claro" : "escuro
 export const ESCALA = Math.min(1.5, Math.max(0.8, Number(process.env.NEXT_PUBLIC_ESCALA) || 1));
 export const MOSTRAR_HORARIOS = process.env.NEXT_PUBLIC_HORARIOS === "1";
 export const CARRINHO_LARGO = process.env.NEXT_PUBLIC_CARRINHO_LARGO === "1";
+// NEXT_PUBLIC_PEDIDO_ONLINE=1      → página /pedir e pedidos online no Delivery
+export const PEDIDO_ONLINE = process.env.NEXT_PUBLIC_PEDIDO_ONLINE === "1";
 
 const ACCENT = process.env.NEXT_PUBLIC_COR_DESTAQUE || (TEMA === "claro" ? "#d97706" : "#f5c000");
 const hexToRgba = (hex, a) => {
