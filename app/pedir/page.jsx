@@ -101,7 +101,7 @@ function Cardapio() {
 
         {etapa === "cardapio" && (
           <>
-            <input style={{ ...base.input, marginBottom: 16 }} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
+            <input style={{ ...campo, marginBottom: 16 }} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
             {grupos.length === 0 && <div style={{ color: C.muted, textAlign: "center", padding: 30 }}>Nenhum produto encontrado.</div>}
             {grupos.map(([cat, lista]) => (
               <section key={cat} style={{ marginBottom: 20 }}>
@@ -148,18 +148,18 @@ function Cardapio() {
 
             <div style={{ ...base.card, display: "grid", gap: 12 }}>
               <div style={base.sectionTitle}>Entrega</div>
-              <Campo label="Seu nome"><input style={base.input} value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} autoComplete="name" /></Campo>
-              <Campo label="WhatsApp (com DDD)"><input style={base.input} value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value })} inputMode="tel" autoComplete="tel" placeholder="(19) 99999-0000" /></Campo>
-              <Campo label="Endereço (rua e número)"><input style={base.input} value={form.endereco} onChange={e => setForm({ ...form, endereco: e.target.value })} autoComplete="street-address" /></Campo>
+              <Campo label="Seu nome"><input style={campo} value={form.nome} onChange={e => setForm({ ...form, nome: e.target.value })} autoComplete="name" /></Campo>
+              <Campo label="WhatsApp (com DDD)"><input style={campo} value={form.telefone} onChange={e => setForm({ ...form, telefone: e.target.value })} inputMode="tel" autoComplete="tel" placeholder="(19) 99999-0000" /></Campo>
+              <Campo label="Endereço (rua e número)"><input style={campo} value={form.endereco} onChange={e => setForm({ ...form, endereco: e.target.value })} autoComplete="street-address" /></Campo>
               {bairros.length > 0 && (
                 <Campo label="Bairro">
-                  <select style={base.select} value={form.bairro} onChange={e => setForm({ ...form, bairro: e.target.value })}>
+                  <select style={campoSelect} value={form.bairro} onChange={e => setForm({ ...form, bairro: e.target.value })}>
                     <option value="">Escolha o bairro</option>
                     {bairros.map(b => <option key={b.id} value={b.nome}>{b.nome} — entrega {fmt(b.taxa)}</option>)}
                   </select>
                 </Campo>
               )}
-              <Campo label="Ponto de referência (opcional)"><input style={base.input} value={form.referencia} onChange={e => setForm({ ...form, referencia: e.target.value })} /></Campo>
+              <Campo label="Ponto de referência (opcional)"><input style={campo} value={form.referencia} onChange={e => setForm({ ...form, referencia: e.target.value })} /></Campo>
             </div>
 
             <div style={{ ...base.card, display: "grid", gap: 12 }}>
@@ -173,9 +173,9 @@ function Cardapio() {
                 ))}
               </div>
               {form.forma_pagamento === "dinheiro" && (
-                <Campo label="Troco para quanto? (opcional)"><input style={base.input} value={form.troco_para} onChange={e => setForm({ ...form, troco_para: e.target.value })} inputMode="decimal" placeholder="Ex: 100" /></Campo>
+                <Campo label="Troco para quanto? (opcional)"><input style={campo} value={form.troco_para} onChange={e => setForm({ ...form, troco_para: e.target.value })} inputMode="decimal" placeholder="Ex: 100" /></Campo>
               )}
-              <Campo label="Observação (opcional)"><input style={base.input} value={form.observacao} onChange={e => setForm({ ...form, observacao: e.target.value })} placeholder="Ex: bem gelada" /></Campo>
+              <Campo label="Observação (opcional)"><input style={campo} value={form.observacao} onChange={e => setForm({ ...form, observacao: e.target.value })} placeholder="Ex: bem gelada" /></Campo>
             </div>
 
             <div style={base.card}>
@@ -207,6 +207,10 @@ function Cardapio() {
     </div>
   );
 }
+
+// 16px: no iPhone, campo menor que isso dá zoom ao tocar
+const campo = { ...base.input, fontSize: 16 };
+const campoSelect = { ...base.select, fontSize: 16 };
 
 const botaoQtd = { width: 34, height: 34, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card2, color: C.text, fontSize: 18, fontWeight: 700, cursor: "pointer" };
 

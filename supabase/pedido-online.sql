@@ -26,7 +26,7 @@ begin
     returns jsonb
     language plpgsql
     security definer
-    set search_path = %1$I, public
+    set search_path = %1$I, pg_temp
     as $fn$
     declare
       v_nome   text := left(btrim(coalesce(p_cliente->>'nome', '')), 80);
@@ -120,7 +120,7 @@ begin
     language sql
     stable
     security definer
-    set search_path = %1$I, public
+    set search_path = %1$I, pg_temp
     as $fn$
       select jsonb_build_object(
         'numero', numero, 'status', status, 'total', total, 'created_at', created_at,

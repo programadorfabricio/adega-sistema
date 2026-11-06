@@ -115,6 +115,12 @@ begin
   assert has_function_privilege('anon', 'testeadega.pedido_online(jsonb,jsonb)', 'execute'), 'anon sem execute';
   assert has_function_privilege('anon', 'testeadega.status_pedido_online(uuid)', 'execute'), 'anon sem execute (status)';
 
+  -- 11. security definer com search_path seguro (schema da adega + pg_temp por último, sem public)
+  assert (select array_to_string(proconfig, ',') from pg_proc where oid = 'testeadega.pedido_online(jsonb,jsonb)'::regprocedure)
+         = 'search_path=testeadega, pg_temp', 'search_path inseguro em pedido_online';
+  assert (select array_to_string(proconfig, ',') from pg_proc where oid = 'testeadega.status_pedido_online(uuid)'::regprocedure)
+         = 'search_path=testeadega, pg_temp', 'search_path inseguro em status_pedido_online';
+
   raise notice 'OK: todos os testes de pedido online passaram';
 end $$;
 

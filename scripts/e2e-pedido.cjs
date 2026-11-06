@@ -164,12 +164,76 @@ async function testeTudo(browser) {
   console.log("OK tudo: pedido → aceitar → saiu → entregue → caixa; storage bloqueado; loja fechada");
 }
 
+async function testeRevisao(browser) {
+  preparar();
+  const cli = { nome: "Rev E2E", telefone: "19977776666", endereco: "Rua R, 1", bairro: "Centro", forma_pagamento: "pix" };
+  const itens = [{ produto_id: idProduto("Cerveja E2E"), quantidade: 1 }];
+
+  // 1. Acompanhamento: falha de rede numa atualização não pode "sumir" com o pedido
+  const p1 = await rpc("pedido_online", { p_cliente: cli, p_itens: itens });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const pg = await ctx.newPage();
+  await pg.clock.install();
+  await pg.goto(`${APP}/pedir/acompanhar?id=${p1.id}`);
+  await pg.locator("[data-status='novo']").waitFor();
+  await pg.route("**/rpc/status_pedido_online", r => r.abort());
+  await pg.clock.fastForward(16000);
+  await pg.waitForTimeout(800);
+  assert.equal(await pg.getByText("Pedido não encontrado").count(), 0, "falha de rede não pode mostrar 'não encontrado'");
+  assert.equal(await pg.locator("[data-status='novo']").count(), 1, "o pedido deveria continuar na tela");
+
+  // 2. Campos com 16px no celular (iPhone não dá zoom)
+  await pg.goto(`${APP}/pedir`);
+  await pg.getByRole("button", { name: "Adicionar Cerveja E2E" }).click();
+  await pg.getByRole("button", { name: /Continuar/ }).click();
+  const tamanhos = await pg.locator("input:not([type=radio]), select").evaluateAll(els => els.map(e => parseFloat(getComputedStyle(e).fontSize)));
+  assert.ok(tamanhos.length > 0 && tamanhos.every(t => t >= 16), `campos com fonte < 16px: ${tamanhos}`);
+  await ctx.close();
+
+  // 3. Aceitar um pedido que outro caixa já aceitou: avisa e não baixa estoque
+  const p2 = await rpc("pedido_online", { p_cliente: { ...cli, nome: "Outro Caixa E2E" }, p_itens: itens });
+  const adm = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+  await entrar(adm);
+  const bloco = adm.locator("[data-bloco='pedidos-online']");
+  await bloco.locator("[data-pedido]", { hasText: "Outro Caixa E2E" }).waitFor();
+  sql(`update ${S}.entregas set status = 'preparando' where id = '${p2.id}'`);
+  const antes = estoque("Cerveja E2E");
+  await bloco.locator("[data-pedido]", { hasText: "Outro Caixa E2E" }).getByRole("button", { name: /Aceitar/ }).click();
+  await adm.waitForTimeout(1500);
+  assert.equal(estoque("Cerveja E2E"), antes, "não pode baixar estoque de pedido já aceito");
+  assert.ok(await bloco.getByText(/já foi aceito ou recusado/).isVisible(), "deveria avisar que outro caixa já tratou o pedido");
+
+  // 4. Recusar abre o WhatsApp antes de esperar o banco (iPhone bloqueia janela aberta depois)
+  const p3 = await rpc("pedido_online", { p_cliente: { ...cli, nome: "Zap E2E" }, p_itens: itens });
+  // sai e volta pro Delivery pra recarregar a lista
+  await adm.locator(".sidebar").getByRole("button", { name: "Dashboard" }).click();
+  await adm.waitForTimeout(800);
+  await adm.locator(".sidebar").getByRole("button", { name: "Delivery" }).click();
+  await adm.locator("[data-bloco='pedidos-online'] [data-pedido]", { hasText: "Zap E2E" }).waitFor();
+  let patchRespondeuEm = 0, janelaAbriuEm = 0;
+  await adm.route(`**/entregas?**`, async r => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    await new Promise(res => setTimeout(res, 1500));
+    await r.continue(); patchRespondeuEm = Date.now();
+  });
+  adm.context().once("page", p => { janelaAbriuEm = Date.now(); p.close().catch(() => {}); });
+  adm.once("dialog", d => d.accept("Fechando"));
+  await adm.locator("[data-bloco='pedidos-online'] [data-pedido]", { hasText: "Zap E2E" }).getByRole("button", { name: /Recusar/ }).click();
+  await adm.waitForTimeout(3000);
+  assert.ok(janelaAbriuEm > 0, "deveria abrir o WhatsApp");
+  assert.ok(janelaAbriuEm < patchRespondeuEm, "a janela do WhatsApp deve abrir no clique, antes da resposta do banco");
+  assert.equal(sql(`select status from ${S}.entregas where id = '${p3.id}'`), "recusado");
+  await adm.close();
+  console.log("OK revisão: falha de rede, fonte 16px, aceite duplicado em outro caixa, WhatsApp no clique");
+}
+
 (async () => {
   const qual = process.argv[2] || "tudo";
   const browser = await chromium.launch();
   try {
+    if (qual === "revisao") { await testeRevisao(browser); console.log("E2E PASSOU"); return; }
     await testeDelivery(browser);
-    if (qual === "tudo") await testeTudo(browser);
+    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); }
     console.log("E2E PASSOU");
   } catch (e) {
     console.error("E2E FALHOU:", e.message);

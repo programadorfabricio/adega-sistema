@@ -33,12 +33,15 @@ function Acompanhar() {
   useEffect(() => {
     if (!idValido) return;
     let ativo = true;
+    let t = null;
     const buscar = async () => {
-      const { data } = await supabase.rpc("status_pedido_online", { p_id: id });
-      if (ativo) setPedido(data || null);
+      const { data, error } = await supabase.rpc("status_pedido_online", { p_id: id });
+      if (!ativo || error) return; // sinal fraco: mantém o que já está na tela
+      setPedido(data || null);
+      if (!data || ["entregue", "recusado", "cancelado"].includes(data.status)) clearInterval(t);
     };
     buscar();
-    const t = setInterval(buscar, 15000);
+    t = setInterval(buscar, 15000);
     return () => { ativo = false; clearInterval(t); };
   }, [id, idValido]);
 

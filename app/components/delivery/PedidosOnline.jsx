@@ -10,8 +10,8 @@ const FORMA = { dinheiro: "Dinheiro", pix: "Pix", cartao: "Cartão" };
 
 const abrirWhats = (tel, texto) => {
   const d = String(tel || "").replace(/\D/g, "");
-  if (!d) return;
-  window.open(`https://wa.me/${d.length <= 11 ? "55" + d : d}?text=${encodeURIComponent(texto)}`, "_blank");
+  if (!d) return null;
+  return window.open(`https://wa.me/${d.length <= 11 ? "55" + d : d}?text=${encodeURIComponent(texto)}`, "_blank");
 };
 
 function bip() {
@@ -63,7 +63,8 @@ export default function PedidosOnline({ onMudou }) {
     travas.current.add(p.id); setOcupado(p.id);
     try {
       const itens = p.itens || [];
-      const { data: atuais } = await supabase.from("produtos").select("*").in("id", itens.map(i => i.produto_id));
+      const { data: atuais, error: erroProd } = await supabase.from("produtos").select("*").in("id", itens.map(i => i.produto_id));
+      if (erroProd) { mostrar("Sem conexão pra conferir o estoque. Tente de novo."); return; }
       for (const i of itens) {
         const prod = (atuais || []).find(x => x.id === i.produto_id);
         if (prod && !semEstoque(prod) && Number(prod.estoque_atual) < Number(i.quantidade)) {
@@ -74,7 +75,12 @@ export default function PedidosOnline({ onMudou }) {
       // Só quem mudar de "novo" pra "preparando" baixa o estoque (outro caixa pode ter aceitado junto)
       const { data: mudou } = await supabase.from("entregas").update({ status: "preparando" })
         .eq("id", p.id).eq("status", "novo").select();
-      if (mudou?.length) await movimentarEstoque(itens, -1, `delivery #${p.numero}`);
+      if (!mudou?.length) {
+        mostrar(`O pedido #${p.numero} já foi aceito ou recusado em outro caixa.`);
+      } else {
+        try { await movimentarEstoque(itens, -1, `delivery #${p.numero}`); }
+        catch { mostrar(`Pedido #${p.numero} aceito, mas o estoque não baixou (sem conexão). Confira no Estoque.`); }
+      }
       await load(); onMudou?.();
     } finally {
       travas.current.delete(p.id); setOcupado(null);
@@ -85,13 +91,16 @@ export default function PedidosOnline({ onMudou }) {
     if (travas.current.has(p.id)) return;
     const motivo = window.prompt(`Recusar o pedido #${p.numero} de ${p.cliente_nome}? Escreva o motivo (o cliente vê):`, "");
     if (motivo === null) return;
+    // Abre o WhatsApp ainda no clique: no iPhone/iPad, janela aberta depois de esperar o banco é bloqueada
+    const janela = abrirWhats(p.telefone, `Olá, ${p.cliente_nome.split(" ")[0]}! Aqui é da ${MARCA.nome}. Infelizmente não conseguimos atender o seu pedido #${p.numero}${motivo.trim() ? `: ${motivo.trim()}` : "."} Desculpe!`);
     travas.current.add(p.id); setOcupado(p.id);
     try {
       const { data: mudou } = await supabase.from("entregas")
         .update({ status: "recusado", motivo_recusa: motivo.trim() || null })
         .eq("id", p.id).eq("status", "novo").select();
-      if (mudou?.length) {
-        abrirWhats(p.telefone, `Olá, ${p.cliente_nome.split(" ")[0]}! Aqui é da ${MARCA.nome}. Infelizmente não conseguimos atender o seu pedido #${p.numero}${motivo.trim() ? `: ${motivo.trim()}` : "."} Desculpe!`);
+      if (!mudou?.length) {
+        janela?.close();
+        mostrar(`O pedido #${p.numero} já foi aceito ou recusado em outro caixa.`);
       }
       await load(); onMudou?.();
     } finally {
