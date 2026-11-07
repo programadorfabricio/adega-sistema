@@ -111,9 +111,18 @@ export default function PedidosOnline({ onMudou }) {
   const aberto = config?.pedido_online_aberto !== false;
   const alternarAberto = async () => {
     const novo = !aberto;
-    if (config?.id) await supabase.from("configuracoes").update({ pedido_online_aberto: novo }).eq("id", config.id);
-    else await supabase.from("configuracoes").insert({ pedido_online_aberto: novo });
-    loadConfig();
+    let res = config?.id
+      ? await supabase.from("configuracoes").update({ pedido_online_aberto: novo }).eq("id", config.id).select()
+      : null;
+    // Sem configuração salva ainda (ou a linha sumiu): cria uma
+    if (!res || (!res.error && !res.data?.length)) {
+      res = await supabase.from("configuracoes").insert({ pedido_online_aberto: novo }).select();
+    }
+    if (res.error || !res.data?.length) {
+      mostrar(`Não foi possível ${novo ? "ligar" : "desligar"} os pedidos online. ${res.error?.message || "Tente de novo."}`);
+      return;
+    }
+    setConfig(res.data[0]);
   };
 
   const link = typeof window !== "undefined" ? `${window.location.origin}/pedir` : "/pedir";

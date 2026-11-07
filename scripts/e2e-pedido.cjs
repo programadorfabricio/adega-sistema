@@ -227,13 +227,42 @@ async function testeRevisao(browser) {
   console.log("OK revisão: falha de rede, fonte 16px, aceite duplicado em outro caixa, WhatsApp no clique");
 }
 
+async function testeInterruptor(browser) {
+  preparar();
+  const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+  await entrar(page);
+  const botao = page.getByRole("button", { name: /Recebendo pedidos/ });
+
+  // Falha ao salvar: tem que avisar na tela (antes não acontecia nada)
+  await page.route("**/configuracoes?**", r => (r.request().method() === "GET" ? r.continue() : r.abort()));
+  await botao.click();
+  await page.waitForTimeout(1200);
+  assert.ok(await page.getByText(/Não foi possível (ligar|desligar)/).isVisible(), "deveria avisar que não salvou");
+  await page.unroute("**/configuracoes?**");
+
+  // Sem nenhuma linha em configuracoes: cria e desliga
+  const salva = sql(`select row_to_json(c) from ${S}.configuracoes c limit 1`);
+  sql(`delete from ${S}.configuracoes`);
+  await page.locator(".sidebar").getByRole("button", { name: "Dashboard" }).click();
+  await page.locator(".sidebar").getByRole("button", { name: "Delivery" }).click();
+  await page.waitForTimeout(1200);
+  await botao.click();
+  await page.waitForTimeout(1500);
+  assert.equal(sql(`select string_agg(pedido_online_aberto::text, ',') from ${S}.configuracoes`), "false", "deveria criar a linha desligada");
+  assert.ok(await page.getByRole("button", { name: /desligado/ }).isVisible(), "botão deveria mostrar desligado");
+  sql(`delete from ${S}.configuracoes; insert into ${S}.configuracoes select * from json_populate_record(null::${S}.configuracoes, '${salva}'::json);`);
+  await page.close();
+  console.log("OK interruptor: avisa erro e funciona sem configuração salva");
+}
+
 (async () => {
   const qual = process.argv[2] || "tudo";
   const browser = await chromium.launch();
   try {
     if (qual === "revisao") { await testeRevisao(browser); console.log("E2E PASSOU"); return; }
+    if (qual === "interruptor") { await testeInterruptor(browser); console.log("E2E PASSOU"); return; }
     await testeDelivery(browser);
-    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); }
+    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); await testeInterruptor(browser); }
     console.log("E2E PASSOU");
   } catch (e) {
     console.error("E2E FALHOU:", e.message);
