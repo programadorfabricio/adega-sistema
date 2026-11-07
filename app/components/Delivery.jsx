@@ -4,6 +4,7 @@ import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, PEDIDO_ONLINE 
 import PedidosOnline from "./delivery/PedidosOnline";
 import { movimentarEstoque } from "./shared/estoque";
 import { inserirItensVenda } from "./shared/custo";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 const STATUS = {
   preparando: { label: "Preparando", icon: "🟡", cor: "#f5c000" },
@@ -120,6 +121,8 @@ export default function Delivery() {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria").order("nome");
     setProdutos(data || []);
   }, []);
+  useRecarregar(load);
+  useRecarregar(loadProdutos);
 
   const loadBairros = useCallback(async () => {
     const { data } = await supabase.from("bairros").select("*").order("nome");

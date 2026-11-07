@@ -255,14 +255,61 @@ async function testeInterruptor(browser) {
   console.log("OK interruptor: avisa erro e funciona sem configuração salva");
 }
 
+async function irPara(page, tela) {
+  await page.locator(".sidebar").getByRole("button", { name: tela }).click();
+  await page.waitForTimeout(1200);
+}
+
+async function testeRecarga(browser) {
+  preparar();
+  const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+  await page.clock.install();
+  await entrar(page);
+
+  // Estoque: outro caixa mudou o estoque → a tela atualiza sozinha em 30 s
+  await irPara(page, "Estoque");
+  await page.locator("text=\"10 un\" >> visible=true").first().waitFor();
+  sql(`update ${S}.produtos set estoque_atual = 77 where nome = 'Cerveja E2E'`);
+  await page.clock.fastForward(31000);
+  await page.locator("text=\"77 un\" >> visible=true").first().waitFor({ timeout: 4000 });
+
+  // Venda Rápida: a recarga não pode apagar o carrinho
+  await irPara(page, "Venda Rápida");
+  await page.getByRole("button", { name: /Cerveja E2E/ }).first().click();
+  // nome exato aparece 2x: no cartão do produto e na linha do carrinho (o aviso verde tem texto maior)
+  const exato = () => page.getByText("Cerveja E2E", { exact: true }).count();
+  assert.equal(await exato(), 2, "produto deveria estar no carrinho");
+  sql(`update ${S}.produtos set estoque_atual = 50 where nome = 'Cerveja E2E'`);
+  await page.clock.fastForward(31000);
+  await page.waitForTimeout(1000);
+  assert.equal(await exato(), 2, "a recarga não pode apagar o carrinho");
+  assert.ok(await page.getByText("disponível: 49").isVisible(), "o estoque da lista deveria atualizar (50 − 1 no carrinho)");
+
+  // Compras e Relatórios também recarregam (antes não tinham nada)
+  for (const tela of ["Compras", "Relatórios", "Financeiro", "Histórico", "Caixa", "Comandas", "Dashboard", "Configurações"]) {
+    await irPara(page, tela);
+    const pedidos = [];
+    const ouvir = r => { if (r.url().includes("/rest/v1/")) pedidos.push(r.url()); };
+    page.on("request", ouvir);
+    await page.clock.fastForward(31000);
+    await page.waitForTimeout(800);
+    page.off("request", ouvir);
+    assert.ok(pedidos.length > 0, `a tela ${tela} deveria recarregar sozinha`);
+    if (tela === "Relatórios") assert.equal(await page.getByText("Carregando...").count(), 0, "relatório não pode piscar 'Carregando'");
+  }
+  await page.close();
+  console.log("OK recarga: estoque atualiza sozinho, carrinho mantido, todas as telas recarregam");
+}
+
 (async () => {
   const qual = process.argv[2] || "tudo";
   const browser = await chromium.launch();
   try {
     if (qual === "revisao") { await testeRevisao(browser); console.log("E2E PASSOU"); return; }
+    if (qual === "recarga") { await testeRecarga(browser); console.log("E2E PASSOU"); return; }
     if (qual === "interruptor") { await testeInterruptor(browser); console.log("E2E PASSOU"); return; }
     await testeDelivery(browser);
-    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); await testeInterruptor(browser); }
+    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); await testeInterruptor(browser); await testeRecarga(browser); }
     console.log("E2E PASSOU");
   } catch (e) {
     console.error("E2E FALHOU:", e.message);

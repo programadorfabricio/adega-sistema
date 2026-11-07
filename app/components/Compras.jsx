@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, today, semEstoque } from "./shared/constants";
 import MonthPicker from "./shared/MonthPicker";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 // ─── FORNECEDORES E COMPRAS ──────────────────────────────
 // Cada compra soma no estoque e (opcional) atualiza o custo do produto.
@@ -67,6 +68,8 @@ export default function Compras() {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("nome");
     setProdutos(data || []);
   }, []);
+  useRecarregar(load);
+  useRecarregar(loadProdutos);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadProdutos(); }, [loadProdutos]);

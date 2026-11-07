@@ -3,14 +3,15 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, today } from "./shared/constants";
 import MonthPicker from "./shared/MonthPicker";
 import { partesDaVenda } from "./shared/pagamento";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 export default function Relatorios() {
   const [vendas, setVendas] = useState([]);
   const [periodo, setPeriodo] = useState(today().slice(0, 7));
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silencioso = false) => {
+    if (!silencioso) setLoading(true);
     const inicio = periodo + "-01";
     const fim = new Date(periodo + "-01");
     fim.setMonth(fim.getMonth() + 1);
@@ -18,6 +19,7 @@ export default function Relatorios() {
     setVendas(data || []);
     setLoading(false);
   }, [periodo]);
+  useRecarregar(() => load(true));
 
   useEffect(() => { load(); }, [load]);
 

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, today, SCHEMA } from "./shared/constants";
 import MonthPicker from "./shared/MonthPicker";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 export default function Financeiro() {
   const [registros, setRegistros] = useState([]);
@@ -17,6 +18,7 @@ export default function Financeiro() {
     const { data } = await supabase.from("financeiro").select("*").gte("data", filtroMes + "-01").order("created_at", { ascending: false });
     setRegistros(data || []);
   }, [filtroMes]);
+  useRecarregar(load);
 
   useEffect(() => {
     load();

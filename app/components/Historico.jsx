@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, today, dataHora, SCHEMA } from "./shared/constants";
 import { partesDaVenda, rotuloPagamento } from "./shared/pagamento";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 export default function Historico() {
   const [vendas, setVendas] = useState([]);
@@ -25,6 +26,8 @@ export default function Historico() {
     const { data } = await supabase.from("comandas").select("*, comanda_itens(*, produtos(nome))").eq("status", "fechada").order("created_at", { ascending: false }).limit(50);
     setComandasFechadas(data || []);
   }, []);
+  useRecarregar(loadVendas);
+  useRecarregar(loadComandasFechadas);
 
   useEffect(() => {
     loadVendas();

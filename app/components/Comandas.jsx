@@ -5,6 +5,7 @@ import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { inserirItensVenda } from "./shared/custo";
 import { CampoDesconto, calcDesconto, inserirVenda, reajustarLinhas, num } from "./shared/pagamento";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
 function useBarcodeListener(onScan, ativo) {
@@ -359,6 +360,8 @@ export default function Comandas({ usuario }) {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
     setProdutos(data || []);
   }, []);
+  useRecarregar(loadComandas);
+  useRecarregar(loadProdutos);
 
   useEffect(() => {
     loadComandas();

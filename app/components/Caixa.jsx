@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, hora, dataHora, SCHEMA, MARCA } from "./shared/constants";
 import { partesDaVenda } from "./shared/pagamento";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 const FORMAS = [
   { id: "dinheiro", label: "Dinheiro", icon: "💵" },
@@ -95,6 +96,7 @@ export default function Caixa({ usuario }) {
     setHistorico(hist || []);
     setCarregando(false);
   }, []);
+  useRecarregar(load);
 
   useEffect(() => {
     load();

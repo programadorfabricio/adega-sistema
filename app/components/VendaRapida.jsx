@@ -6,6 +6,7 @@ import TrocoCalculator from "./shared/TrocoCalculator";
 import { useCaixaAberto } from "./Caixa";
 import { inserirItensVenda } from "./shared/custo";
 import { FORMAS_PAG, CampoDesconto, PagamentoDividido, calcDesconto, inserirVenda, linhasIniciais, linhasBatem, reajustarLinhas, num } from "./shared/pagamento";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
 function useBarcodeListener(onScan) {
@@ -57,6 +58,7 @@ export default function VendaRapida({ setPage }) {
     const unicos = (data || []).filter((p, idx, arr) => arr.findIndex(x => x.id === p.id) === idx);
     setProdutos(unicos);
   }, []);
+  useRecarregar(loadProdutos);
 
   useEffect(() => {
     loadProdutos();

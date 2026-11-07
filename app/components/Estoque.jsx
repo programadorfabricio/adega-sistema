@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
 import { temVolume, textoGarrafa, unidadeFracao } from "./shared/estoque";
 import { custoDoProduto, margem } from "./shared/custo";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 // ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
 function BarcodeScanner({ onFound, onClose }) {
@@ -107,6 +108,7 @@ export default function Estoque() {
     if (!error) (ins || []).forEach(x => { (r[x.produto_id] ||= []).push(x); });
     setReceitasTodas(r);
   }, []);
+  useRecarregar(load);
 
   const loadCategorias = useCallback(async () => {
     const { data } = await supabase.from("categorias").select("*").order("nome");

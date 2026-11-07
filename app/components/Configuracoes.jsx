@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base } from "./shared/constants";
+import { useRecarregar } from "./shared/recarregar.mjs";
 
 export default function Configuracoes() {
   const [usuarios, setUsuarios] = useState([]);
@@ -45,6 +46,9 @@ export default function Configuracoes() {
     setBairrosAtivo(!error);
     setBairros(data || []);
   }, []);
+  useRecarregar(loadUsuarios);
+  useRecarregar(loadBairros);
+  useRecarregar(loadCategorias);
 
   useEffect(() => { loadUsuarios(); loadConfig(); loadCategorias(); loadBairros(); }, [loadUsuarios, loadConfig, loadCategorias, loadBairros]);
 

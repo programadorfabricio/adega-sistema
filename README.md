@@ -60,3 +60,8 @@ Para ligar numa adega:
 Teste local: `supabase/testes/pedido-online.test.sql` (funções do banco),
 `node --test scripts/carrinho.test.mjs` (carrinho) e
 `NODE_PATH=$(npm root -g) node scripts/e2e-pedido.cjs` (fluxo completo).
+
+## Telas que se atualizam sozinhas
+
+Cada tela recarrega a cada 30 s (só com a aba visível) e ao voltar pra aba (`app/components/shared/recarregar.mjs`).
+Para atualizar **na hora** (tempo real), rode uma vez por adega `supabase/tempo-real.sql` trocando `'public'` pelo schema.

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { escutarRecarga } from "./shared/recarregar.mjs";
 import { supabase, C, base, fmt, today, hora, SCHEMA, semEstoque, resumoNomes, PAGINAS_OCULTAS } from "./shared/constants";
 import { rotuloPagamento } from "./shared/pagamento";
 
@@ -58,7 +59,8 @@ export default function Dashboard({ setPage }) {
       .on("postgres_changes", { event: "*", schema: SCHEMA, table: "financeiro" }, load)
       .on("postgres_changes", { event: "*", schema: SCHEMA, table: "entregas" }, load)
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    const pararRecarga = escutarRecarga(load);
+    return () => { supabase.removeChannel(channel); pararRecarga(); };
   }, []);
 
   const cards = [
