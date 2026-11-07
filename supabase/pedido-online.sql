@@ -19,6 +19,10 @@ begin
   execute format('alter table %I.entregas add column if not exists origem text not null default %L', alvo, 'balcao');
   execute format('alter table %I.entregas add column if not exists motivo_recusa text', alvo);
   execute format('alter table %I.configuracoes add column if not exists pedido_online_aberto boolean not null default true', alvo);
+  -- O botão "Recebendo pedidos" grava em configuracoes; garante a mesma permissão das outras tabelas
+  if not exists (select 1 from pg_policies where schemaname = alvo and tablename = 'configuracoes' and cmd in ('ALL', 'UPDATE')) then
+    execute format('create policy acesso_app_config on %I.configuracoes for all using (true) with check (true)', alvo);
+  end if;
 
   -- ── Recebe o pedido ─────────────────────────────────────
   execute format($f$
