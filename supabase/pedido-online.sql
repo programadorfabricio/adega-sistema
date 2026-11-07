@@ -3,18 +3,21 @@
 -- cai como "novo" na tela Delivery da adega.
 --
 -- Como usar (Supabase → SQL Editor):
---   1. Troque 'public' abaixo pelo schema da adega que vai usar
---      (public = demonstração Império). Rode só nas adegas que contrataram.
+--   1. Troque 'public' lá embaixo (linha "alvo") pelo schema da adega
+--      (public = demonstração Império).
 --   2. Rode o script inteiro. Pode rodar de novo sem erro.
 --   3. No deploy da Vercel dessa adega: NEXT_PUBLIC_PEDIDO_ONLINE=1
+--   Adegas criadas pelo nova-adega.sql já vêm com isso instalado
+--   (só falta o passo 3 se o cliente contratar).
 --
 -- Segurança: o preço, a taxa e o estoque são conferidos aqui no banco.
 -- O que vem do celular do cliente é só "qual produto e quantos".
 -- ============================================================
 
-do $$
-declare
-  alvo text := 'public';   -- <<< SCHEMA DA ADEGA
+create or replace function public.instalar_pedido_online(alvo text)
+returns void
+language plpgsql
+as $inst$
 begin
   execute format('alter table %I.entregas add column if not exists origem text not null default %L', alvo, 'balcao');
   execute format('alter table %I.entregas add column if not exists motivo_recusa text', alvo);
@@ -136,6 +139,17 @@ begin
 
   execute format('grant execute on function %I.pedido_online(jsonb, jsonb) to anon, authenticated', alvo);
   execute format('grant execute on function %I.status_pedido_online(uuid) to anon, authenticated', alvo);
+end
+$inst$;
+
+-- O instalador é só pra você no SQL Editor: o app (anon) não pode chamar
+revoke all on function public.instalar_pedido_online(text) from public, anon, authenticated;
+
+do $$
+declare
+  alvo text := 'public';   -- <<< SCHEMA DA ADEGA
+begin
+  perform public.instalar_pedido_online(alvo);
 end $$;
 
 -- Recarrega o cache da API para as funções aparecerem na hora

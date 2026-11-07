@@ -53,7 +53,7 @@ A adega aceita (o estoque baixa nessa hora) ou recusa (com motivo; o cliente vê
 Pagamento é na entrega (dinheiro com troco, Pix ou cartão). Desligado por padrão.
 
 Para ligar numa adega:
-1. Supabase → SQL Editor: rode `supabase/pedido-online.sql` trocando `alvo` pelo schema da adega.
+1. Adega criada pelo `nova-adega.sql` já tem tudo. Adega antiga: rode `supabase/pedido-online.sql` trocando `'public'` na linha `alvo` pelo schema.
 2. Vercel da adega: `NEXT_PUBLIC_PEDIDO_ONLINE=1` e redeploy.
 3. No Delivery, copie o link do cardápio e mande pro cliente divulgar.
 
@@ -65,3 +65,7 @@ Teste local: `supabase/testes/pedido-online.test.sql` (funções do banco),
 
 Cada tela recarrega a cada 30 s (só com a aba visível) e ao voltar pra aba (`app/components/shared/recarregar.mjs`).
 Para atualizar **na hora** (tempo real), rode uma vez por adega `supabase/tempo-real.sql` trocando `'public'` pelo schema.
+
+## Cliente novo
+
+Passo a passo completo: [docs/NOVO-CLIENTE.md](docs/NOVO-CLIENTE.md).
