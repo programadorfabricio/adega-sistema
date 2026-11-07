@@ -73,9 +73,10 @@ begin
       -- Junta linhas repetidas do mesmo produto e confere tudo pelo cadastro
       for p in
         select a.pid, a.qtd, pr.nome, pr.preco, pr.ativo, pr.controla_estoque, pr.estoque_atual
-        from (select (e->>'produto_id')::uuid as pid, sum((e->>'quantidade')::int) as qtd
-              from jsonb_array_elements(p_itens) e group by 1) a
+        from (select (e->>'produto_id')::uuid as pid, sum((e->>'quantidade')::int) as qtd, min(ord) as ordem
+              from jsonb_array_elements(p_itens) with ordinality as t(e, ord) group by 1) a
         left join produtos pr on pr.id = a.pid
+        order by a.ordem   -- mantém a ordem em que o cliente montou o carrinho
       loop
         if p.nome is null or not coalesce(p.ativo, false) or coalesce(p.preco, 0) <= 0 then
           raise exception 'O produto %% não está mais disponível.', coalesce(p.nome, 'escolhido');
