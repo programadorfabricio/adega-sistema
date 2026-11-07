@@ -301,15 +301,39 @@ async function testeRecarga(browser) {
   console.log("OK recarga: estoque atualiza sozinho, carrinho mantido, todas as telas recarregam");
 }
 
+async function testeCardapioAtualiza(browser) {
+  preparar();
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const pg = await ctx.newPage();
+  await pg.clock.install();
+  await pg.goto(`${APP}/pedir`);
+  await pg.getByRole("button", { name: "Adicionar Cerveja E2E" }).click();
+  // Adega fecha e o Copão acaba enquanto o cliente está com a página aberta
+  sql(`update ${S}.configuracoes set pedido_online_aberto = false; update ${S}.produtos set ativo = false where nome = 'Copão E2E'`);
+  await pg.clock.fastForward(31000);
+  await pg.getByText("Fechado no momento").waitFor({ timeout: 4000 });
+  assert.equal(await pg.getByText("Copão E2E").count(), 0, "produto desativado deveria sumir do cardápio");
+  assert.ok(await pg.getByRole("button", { name: /Continuar/ }).isDisabled(), "com a loja fechada não pode continuar");
+  assert.ok(await pg.getByRole("button", { name: "Mais Cerveja E2E" }).isVisible(), "o carrinho do cliente deveria continuar");
+  // Reabre: volta sozinho
+  sql(`update ${S}.configuracoes set pedido_online_aberto = true; update ${S}.produtos set ativo = true where nome = 'Copão E2E'`);
+  await pg.clock.fastForward(31000);
+  await pg.waitForTimeout(800);
+  assert.equal(await pg.getByText("Fechado no momento").count(), 0, "deveria reabrir sozinho");
+  await ctx.close();
+  console.log("OK cardápio: fecha, esconde produto e reabre sozinho sem perder o carrinho");
+}
+
 (async () => {
   const qual = process.argv[2] || "tudo";
   const browser = await chromium.launch();
   try {
     if (qual === "revisao") { await testeRevisao(browser); console.log("E2E PASSOU"); return; }
+    if (qual === "cardapio") { await testeCardapioAtualiza(browser); console.log("E2E PASSOU"); return; }
     if (qual === "recarga") { await testeRecarga(browser); console.log("E2E PASSOU"); return; }
     if (qual === "interruptor") { await testeInterruptor(browser); console.log("E2E PASSOU"); return; }
     await testeDelivery(browser);
-    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); await testeInterruptor(browser); await testeRecarga(browser); }
+    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); await testeInterruptor(browser); await testeRecarga(browser); await testeCardapioAtualiza(browser); }
     console.log("E2E PASSOU");
   } catch (e) {
     console.error("E2E FALHOU:", e.message);

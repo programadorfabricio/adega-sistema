@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, C, base, fmt, MARCA, ESCALA, PEDIDO_ONLINE, semEstoque } from "../components/shared/constants";
 import LogoMarca from "../components/shared/LogoMarca";
 import { adicionar, alterarQtd, totais, lerCliente, salvarCliente } from "./carrinho.mjs";
 import { FORMAS, NaoEncontrada } from "./ui";
+import { useRecarregar } from "../components/shared/recarregar.mjs";
 
 const disponivel = (p) => p.ativo && Number(p.preco) > 0 && (semEstoque(p) || Number(p.estoque_atual) > 0);
 
@@ -26,20 +27,26 @@ function Cardapio() {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
 
-  useEffect(() => {
-    (async () => {
-      const [pr, ba, cf] = await Promise.all([
-        supabase.from("produtos").select("*").eq("ativo", true).order("categoria").order("nome"),
-        supabase.from("bairros").select("*").order("nome"),
-        supabase.from("configuracoes").select("*").limit(1).maybeSingle(),
-      ]);
-      setProdutos((pr.data || []).filter(disponivel));
-      setBairros(ba.data || []);
-      setConfig(cf.data || {});
-      setCarregando(false);
-    })();
-    setForm(f => ({ ...f, ...lerCliente() }));
+  // Lê cardápio, bairros e se a loja está aberta. Roda ao abrir, a cada 30 s e ao voltar pra aba,
+  // pra quem está com a página aberta ver "Fechado" e produto esgotado sumir sem recarregar.
+  const carregar = useCallback(async () => {
+    const [pr, ba, cf] = await Promise.all([
+      supabase.from("produtos").select("*").eq("ativo", true).order("categoria").order("nome"),
+      supabase.from("bairros").select("*").order("nome"),
+      supabase.from("configuracoes").select("*").limit(1).maybeSingle(),
+    ]);
+    if (pr.error || ba.error || cf.error) { setCarregando(false); return; } // sinal fraco: mantém o que já tem
+    setProdutos((pr.data || []).filter(disponivel));
+    setBairros(ba.data || []);
+    setConfig(cf.data || {});
+    setCarregando(false);
   }, []);
+  useRecarregar(carregar);
+
+  useEffect(() => {
+    carregar();
+    setForm(f => ({ ...f, ...lerCliente() }));
+  }, [carregar]);
 
   const aberto = config?.pedido_online_aberto !== false;
   const nomeLoja = config?.nome_estabelecimento || MARCA.nome;
