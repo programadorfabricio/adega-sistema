@@ -137,8 +137,42 @@ begin
     $fn$;
   $f$, alvo);
 
+  -- ── Cardápio público (só o que o cliente pode ver; nunca o custo) ─────
+  execute format($f$
+    create or replace function %1$I.cardapio_online()
+    returns jsonb
+    language sql
+    stable
+    security definer
+    set search_path = %1$I, pg_temp
+    as $fn$
+      select jsonb_build_object(
+        'loja', coalesce(
+          (select jsonb_build_object(
+             'nome', c.nome_estabelecimento,
+             'telefone', c.telefone,
+             'aberto', coalesce(c.pedido_online_aberto, true))
+           from configuracoes c limit 1),
+          jsonb_build_object('nome', null, 'telefone', null, 'aberto', true)),
+        'bairros', coalesce(
+          (select jsonb_agg(jsonb_build_object('nome', b.nome, 'taxa', b.taxa) order by b.nome)
+           from bairros b),
+          '[]'::jsonb),
+        'produtos', coalesce(
+          (select jsonb_agg(jsonb_build_object(
+             'id', p.id, 'nome', p.nome, 'categoria', p.categoria, 'preco', p.preco,
+             'controla_estoque', p.controla_estoque, 'estoque_atual', p.estoque_atual)
+             order by p.categoria, p.nome)
+           from produtos p
+           where p.ativo and p.preco > 0
+             and (p.controla_estoque = false or p.estoque_atual > 0)),
+          '[]'::jsonb))
+    $fn$;
+  $f$, alvo);
+
   execute format('grant execute on function %I.pedido_online(jsonb, jsonb) to anon, authenticated', alvo);
   execute format('grant execute on function %I.status_pedido_online(uuid) to anon, authenticated', alvo);
+  execute format('grant execute on function %I.cardapio_online() to anon, authenticated', alvo);
 end
 $inst$;
 

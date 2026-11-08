@@ -10,6 +10,9 @@ declare
   cerveja uuid;
   copao   uuid;
   inativo uuid;
+  semest  uuid;
+  c       jsonb;
+  it      jsonb;
   r       jsonb;
   e       record;
   msg     text;
@@ -24,6 +27,8 @@ begin
     values ('Copão Teste', 'copão', 30, 'un', 0, 0, false, true) returning id into copao;
   insert into produtos (nome, categoria, preco, unidade, estoque_atual, estoque_minimo, controla_estoque, ativo)
     values ('Inativo Teste', 'cerveja', 8, 'un', 10, 0, true, false) returning id into inativo;
+  insert into produtos (nome, categoria, preco, unidade, estoque_atual, estoque_minimo, controla_estoque, ativo)
+    values ('Sem Estoque Teste', 'cerveja', 9, 'un', 0, 0, true, true) returning id into semest;
 
   -- 1. preço vem do cadastro, não do celular; taxa do bairro; telefone só dígitos
   r := pedido_online(cli, jsonb_build_array(
@@ -120,6 +125,30 @@ begin
          = 'search_path=testeadega, pg_temp', 'search_path inseguro em pedido_online';
   assert (select array_to_string(proconfig, ',') from pg_proc where oid = 'testeadega.status_pedido_online(uuid)'::regprocedure)
          = 'search_path=testeadega, pg_temp', 'search_path inseguro em status_pedido_online';
+
+  -- 12. cardapio_online: só o que o cliente pode ver, nunca o custo
+  c := cardapio_online();
+  assert jsonb_typeof(c->'produtos') = 'array' and jsonb_typeof(c->'bairros') = 'array', 'cardapio: produtos/bairros deveriam ser arrays';
+  assert exists (select 1 from jsonb_array_elements(c->'produtos') x where x->>'id' = cerveja::text), 'cardapio: produto ativo deveria aparecer';
+  assert exists (select 1 from jsonb_array_elements(c->'produtos') x where x->>'id' = copao::text), 'cardapio: copão sem controle deveria aparecer';
+  assert not exists (select 1 from jsonb_array_elements(c->'produtos') x where x->>'id' = inativo::text), 'cardapio: inativo não deveria aparecer';
+  assert not exists (select 1 from jsonb_array_elements(c->'produtos') x where x->>'id' = semest::text), 'cardapio: controlado com estoque 0 não deveria aparecer';
+  for it in select * from jsonb_array_elements(c->'produtos') loop
+    assert not (it ? 'preco_custo'), 'cardapio: expôs preco_custo';
+    assert (select array_agg(k order by k) from jsonb_object_keys(it) k)
+           = array['categoria','controla_estoque','estoque_atual','id','nome','preco'], format('cardapio: chaves inesperadas %s', it);
+  end loop;
+  assert c->'bairros' = '[{"nome":"Centro","taxa":7}]'::jsonb, format('cardapio: bairros inesperados %s', c->'bairros');
+  assert (c->'loja'->>'aberto')::boolean is true, 'cardapio: loja deveria estar aberta';
+  assert (select array_agg(k order by k) from jsonb_object_keys(c->'loja') k) = array['aberto','nome','telefone'], 'cardapio: chaves da loja';
+  update configuracoes set pedido_online_aberto = false;
+  assert ((cardapio_online())->'loja'->>'aberto')::boolean is false, 'cardapio: loja deveria estar fechada';
+  update configuracoes set pedido_online_aberto = true;
+  delete from bairros;
+  assert (cardapio_online())->'bairros' = '[]'::jsonb, 'cardapio: sem bairros deveria ser []';
+  assert has_function_privilege('anon', 'testeadega.cardapio_online()', 'execute'), 'anon sem execute (cardapio)';
+  assert (select array_to_string(proconfig, ',') from pg_proc where oid = 'testeadega.cardapio_online()'::regprocedure)
+         = 'search_path=testeadega, pg_temp', 'search_path inseguro em cardapio_online';
 
   raise notice 'OK: todos os testes de pedido online passaram';
 end $$;
