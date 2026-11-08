@@ -50,6 +50,63 @@ select set_config('t.aleatorio',
    from information_schema.columns where table_schema = 'testeadega' and table_name = 'usuarios' and column_name = 'id'), true);
 update testeadega.usuarios set pin = '1234' where nome = 'Teste';
 
+-- ── preparar_login sozinho (migração: cliente entra com a conta da loja ANTES de trancar) ──
+-- apaga o que uma instalação anterior deixou, pra provar que preparar_login cria tudo sozinho
+do $$
+declare f regprocedure;
+begin
+  for f in select p.oid::regprocedure from pg_proc p where p.pronamespace = 'testeadega'::regnamespace and p.proname = 'conferir_pin' loop
+    execute format('drop function %s', f);
+  end loop;
+end $$;
+drop table if exists testeadega.pin_tentativas;
+select public.preparar_login('testeadega');
+select public.preparar_login('testeadega');   -- 2× = pode rodar de novo sem erro
+do $$
+declare recusou boolean;
+begin
+  assert to_regclass('testeadega.pin_tentativas') is not null, 'preparar_login não criou pin_tentativas';
+  assert exists (select 1 from pg_proc where pronamespace = 'testeadega'::regnamespace and proname = 'conferir_pin'), 'preparar_login não criou conferir_pin';
+  assert not exists (select 1 from pg_policies where schemaname = 'testeadega' and policyname like 'loja\_%'), 'preparar_login não pode trancar';
+  assert not has_function_privilege('anon', 'public.preparar_login(text)', 'execute'), 'preparar_login exposto ao anon';
+  assert not has_function_privilege('authenticated', 'public.preparar_login(text)', 'execute'), 'preparar_login exposto ao authenticated';
+  assert not has_function_privilege('anon', (select p.oid from pg_proc p where p.pronamespace = 'testeadega'::regnamespace and p.proname = 'conferir_pin'), 'execute'), 'conferir_pin exposto ao anon (preparar_login)';
+  assert not has_table_privilege('anon', 'testeadega.pin_tentativas', 'select,insert,update,delete'), 'pin_tentativas exposta ao anon (preparar_login)';
+  assert not has_table_privilege('authenticated', 'testeadega.pin_tentativas', 'select,insert,update,delete'), 'pin_tentativas exposta ao authenticated (preparar_login)';
+  recusou := false;
+  begin perform public.preparar_login('nao_existe_xyz'); exception when others then recusou := true; end;
+  assert recusou, 'preparar_login(schema inexistente) deveria ser recusado';
+  recusou := false;
+  begin perform public.preparar_login(null); exception when others then recusou := true; end;
+  assert recusou, 'preparar_login(null) deveria ser recusado';
+end $$;
+
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+do $$
+declare negou boolean;
+begin
+  assert (select count(*) from testeadega.produtos) > 0, 'depois de só preparar_login o anon ainda lê produtos (não trancou)';
+  negou := false;
+  begin perform public.t_pin('testeadega', current_setting('t.admin'), '1234'); exception when insufficient_privilege then negou := true; end;
+  assert negou, 'anon chamou conferir_pin (preparar_login)';
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"schema":"testeadega"}}', true);
+do $$
+declare r jsonb;
+begin
+  r := public.t_pin('testeadega', current_setting('t.admin'), '1234');
+  assert (r->>'ok')::boolean and r->'usuario'->>'nome' = 'Teste', 'preparar_login: PIN certo: ' || r::text;
+  r := public.t_pin('testeadega', current_setting('t.admin'), '0000');
+  assert (r->>'ok')::boolean = false and (r->>'restantes')::int = 4, 'preparar_login: PIN errado: ' || r::text;
+  assert (select count(*) from testeadega.produtos) > 0, 'conta da loja lê produtos com a adega ainda aberta';
+end $$;
+reset role;
+delete from testeadega.pin_tentativas;
+
 -- Permissões padrão de hoje (nova-adega.sql passo 3): tabela nova nasce liberada
 alter default privileges in schema testeadega grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema testeadega grant all on sequences to anon, authenticated, service_role;

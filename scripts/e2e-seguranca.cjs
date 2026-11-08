@@ -176,10 +176,66 @@ async function teste(browser) {
   console.log("OK segurança: conta da loja, outra adega, sessão salva, PIN no banco, venda, comanda, troca de PIN, sair da conta, bloqueio");
 }
 
+// /pedir sem sessão (cliente final) com a adega trancada: cardápio vem de cardapio_online, pedido chega no Delivery
+async function testePedidoTrancado(browser) {
+  sql(`delete from ${S}.entregas where cliente_nome = 'Cliente Seg E2E';
+       delete from ${S}.produtos where nome = 'Cerveja E2E';
+       insert into ${S}.produtos (nome, categoria, preco, unidade, estoque_atual, estoque_minimo, controla_estoque, ativo)
+         values ('Cerveja E2E', 'cerveja', 10, 'un', 10, 0, true, true);
+       insert into ${S}.bairros (nome, taxa) select 'Centro', 7 where not exists (select 1 from ${S}.bairros where nome = 'Centro');
+       update ${S}.configuracoes set pedido_online_aberto = true;`);
+  const loja = sql(`select nome_estabelecimento from ${S}.configuracoes limit 1`);
+
+  const cli = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const pg = await cli.newPage();
+  const erros = []; pg.on("pageerror", e => erros.push(String(e)));
+  await pg.goto(`${APP}/pedir`);
+  await pg.getByText("Cerveja E2E").waitFor({ timeout: 15000 });
+  if (loja) assert.ok(await pg.getByText(loja, { exact: true }).isVisible(), "o nome da loja deveria aparecer no cardápio");
+  await pg.getByRole("button", { name: "Adicionar Cerveja E2E" }).click();
+  await pg.getByRole("button", { name: /Continuar/ }).click();
+  await pg.getByLabel("Seu nome").fill("Cliente Seg E2E");
+  await pg.getByLabel("WhatsApp (com DDD)").fill("(19) 98888-7777");
+  await pg.getByLabel("Endereço (rua e número)").fill("Rua das Flores, 123");
+  await pg.getByLabel("Bairro").selectOption("Centro");
+  await pg.getByRole("button", { name: "Enviar pedido" }).click();
+  await pg.waitForURL(/\/pedir\/acompanhar\?id=/, { timeout: 10000 });
+  await pg.getByText("Recebido").first().waitFor({ timeout: 10000 });
+  if (loja) assert.ok(await pg.getByText(loja).first().isVisible(), "o acompanhamento deveria mostrar o nome da loja");
+  assert.equal(sql(`select count(*) from ${S}.entregas where cliente_nome = 'Cliente Seg E2E'`), "1", "o pedido deveria ser gravado");
+
+  // Loja fechada → "Fechado no momento"
+  sql(`update ${S}.configuracoes set pedido_online_aberto = false`);
+  await pg.goto(`${APP}/pedir`);
+  await pg.getByText("Fechado no momento").waitFor({ timeout: 15000 });
+  assert.ok(await pg.getByRole("button", { name: "Adicionar Cerveja E2E" }).isDisabled(), "fechado: não pode adicionar");
+  sql(`update ${S}.configuracoes set pedido_online_aberto = true`);
+  assert.deepEqual(erros, [], `erros na página: ${erros}`);
+  await cli.close();
+
+  // O pedido aparece no Delivery da conta da loja
+  const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 } });
+  await simularAuth(ctx);
+  const page = await ctx.newPage();
+  await page.goto(APP);
+  await page.getByText("Entrar com a conta da loja").waitFor({ timeout: 15000 });
+  await contaDaLoja(page, "loja@testeadega");
+  await page.getByText("Teste", { exact: true }).click();
+  await digitar(page, "1234");
+  await page.locator(".sidebar").waitFor({ timeout: 5000 });
+  await irPara(page, "Delivery");
+  const bloco = page.locator("[data-bloco='pedidos-online']");
+  await bloco.getByText("Cliente Seg E2E").waitFor({ timeout: 5000 });
+  await ctx.close();
+  sql(`delete from ${S}.entregas where cliente_nome = 'Cliente Seg E2E'; delete from ${S}.pin_tentativas;`);
+  console.log("OK pedido online trancado: cardápio sem login, Fechado no momento, pedido no Delivery da loja");
+}
+
 (async () => {
   const browser = await chromium.launch();
   try {
     await teste(browser);
+    await testePedidoTrancado(browser);
     console.log("E2E PASSOU");
   } catch (e) {
     console.error("E2E FALHOU:", e.message);

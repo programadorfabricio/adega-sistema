@@ -69,3 +69,16 @@ Para atualizar **na hora** (tempo real), rode uma vez por adega `supabase/tempo-
 ## Cliente novo
 
 Passo a passo completo: [docs/NOVO-CLIENTE.md](docs/NOVO-CLIENTE.md).
+
+## Segurança: conta da loja + banco trancado
+
+Com `NEXT_PUBLIC_LOGIN_LOJA=1`, cada aparelho entra uma vez com o e-mail e a senha da loja (Supabase Auth) e
+depois só com o PIN, que é conferido no banco. O `supabase/trava.sql` tranca o schema da adega: só a conta
+daquela adega lê e grava; o cardápio `/pedir` continua sem login (funções `cardapio_online`/`pedido_online`).
+
+- Cliente novo: já nasce trancado, veja [docs/NOVO-CLIENTE.md](docs/NOVO-CLIENTE.md).
+- Adega que já existe (ex.: Magal): siga [docs/MIGRAR-CLIENTE-SEGURANCA.md](docs/MIGRAR-CLIENTE-SEGURANCA.md).
+- Desfazer: `supabase/destrancar-adega.sql`.
+
+Teste local: `scripts/testar-trava.sh` (banco) e
+`NODE_PATH=$(npm root -g) node scripts/e2e-seguranca.cjs` (app com a adega trancada).

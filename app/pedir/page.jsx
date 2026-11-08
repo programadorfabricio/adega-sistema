@@ -7,7 +7,8 @@ import { adicionar, alterarQtd, totais, lerCliente, salvarCliente } from "./carr
 import { FORMAS, NaoEncontrada } from "./ui";
 import { useRecarregar } from "../components/shared/recarregar.mjs";
 
-const disponivel = (p) => p.ativo && Number(p.preco) > 0 && (semEstoque(p) || Number(p.estoque_atual) > 0);
+// cardapio_online já manda só os ativos com preço e estoque; o filtro fica de garantia
+const disponivel = (p) => Number(p.preco) > 0 && (semEstoque(p) || Number(p.estoque_atual) > 0);
 
 export default function PedirPage() {
   if (!PEDIDO_ONLINE) return <NaoEncontrada />;
@@ -18,7 +19,7 @@ function Cardapio() {
   const router = useRouter();
   const [produtos, setProdutos] = useState([]);
   const [bairros, setBairros] = useState([]);
-  const [config, setConfig] = useState(null);
+  const [loja, setLoja] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [carrinho, setCarrinho] = useState([]);
@@ -29,16 +30,14 @@ function Cardapio() {
 
   // Lê cardápio, bairros e se a loja está aberta. Roda ao abrir, a cada 30 s e ao voltar pra aba,
   // pra quem está com a página aberta ver "Fechado" e produto esgotado sumir sem recarregar.
+  // Tudo vem de <adega>.cardapio_online() (supabase/pedido-online.sql): funciona com a adega trancada
+  // (o cliente final não tem login) e não expõe custo nem dados internos.
   const carregar = useCallback(async () => {
-    const [pr, ba, cf] = await Promise.all([
-      supabase.from("produtos").select("*").eq("ativo", true).order("categoria").order("nome"),
-      supabase.from("bairros").select("*").order("nome"),
-      supabase.from("configuracoes").select("*").limit(1).maybeSingle(),
-    ]);
-    if (pr.error || ba.error || cf.error) { setCarregando(false); return; } // sinal fraco: mantém o que já tem
-    setProdutos((pr.data || []).filter(disponivel));
-    setBairros(ba.data || []);
-    setConfig(cf.data || {});
+    const { data, error } = await supabase.rpc("cardapio_online");
+    if (error || !data) { setCarregando(false); return; } // sinal fraco: mantém o que já tem
+    setProdutos((data.produtos || []).filter(disponivel));
+    setBairros(data.bairros || []);
+    setLoja(data.loja || {});
     setCarregando(false);
   }, []);
   useRecarregar(carregar);
@@ -48,8 +47,8 @@ function Cardapio() {
     setForm(f => ({ ...f, ...lerCliente() }));
   }, [carregar]);
 
-  const aberto = config?.pedido_online_aberto !== false;
-  const nomeLoja = config?.nome_estabelecimento || MARCA.nome;
+  const aberto = loja?.aberto !== false;
+  const nomeLoja = loja?.nome || MARCA.nome;
   const taxa = Number(bairros.find(b => b.nome === form.bairro)?.taxa || 0);
   const t = totais(carrinho, taxa);
   const qtdItens = carrinho.reduce((s, i) => s + i.quantidade, 0);
@@ -162,7 +161,7 @@ function Cardapio() {
                 <Campo label="Bairro">
                   <select style={campoSelect} value={form.bairro} onChange={e => setForm({ ...form, bairro: e.target.value })}>
                     <option value="">Escolha o bairro</option>
-                    {bairros.map(b => <option key={b.id} value={b.nome}>{b.nome} — entrega {fmt(b.taxa)}</option>)}
+                    {bairros.map(b => <option key={b.nome} value={b.nome}>{b.nome} — entrega {fmt(b.taxa)}</option>)}
                   </select>
                 </Campo>
               )}

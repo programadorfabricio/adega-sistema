@@ -19,7 +19,13 @@
 --   1. Troque 'NOME_DA_ADEGA' lá embaixo (linha "alvo") pelo schema da adega.
 --      A demonstração (public) nunca é trancada.
 --   2. Rode o script inteiro. Pode rodar de novo sem erro.
+--   Rodado SEM trocar 'NOME_DA_ADEGA': só instala/atualiza as funções e não tranca nada.
 --   Adegas criadas pelo nova-adega.sql já nascem trancadas.
+--
+-- Migração de adega que já existe (passo a passo em docs/MIGRAR-CLIENTE-SEGURANCA.md):
+--   select public.preparar_login('<adega>');   -- login da loja funciona, banco continua aberto
+--   ... cliente entra com a conta da loja em cada aparelho ...
+--   depois rode este script com alvo = '<adega>' para trancar.
 -- ============================================================
 
 -- Schema da conta que está logada (vem do token do Supabase Auth)
@@ -46,20 +52,21 @@ as $$ select true $$;
 revoke all on function public.ping() from public;
 grant execute on function public.ping() to anon, authenticated;
 
-create or replace function public.instalar_trava(alvo text)
+-- Login da loja SEM trancar: cria <adega>.pin_tentativas e <adega>.conferir_pin.
+-- Serve pra migração (o cliente entra com a conta da loja enquanto o banco ainda está aberto)
+-- e é chamada pelo instalar_trava. Pode rodar de novo sem erro.
+-- Aceita 'public' (a demonstração): ela nunca é trancada, mas pode testar o login da loja.
+create or replace function public.preparar_login(alvo text)
 returns void
 language plpgsql
 as $inst$
 declare
-  t       text;
   p       text;
-  cols    text;
   tipo_id text;
-  sobra   text;
   rel_usuarios text;
 begin
-  if alvo is null or alvo = 'public' then
-    raise exception 'A demonstração (public) nunca é trancada. Troque o alvo pelo schema da adega.';
+  if alvo is null or alvo = '' then
+    raise exception 'Coloque o schema da adega na linha "alvo".';
   end if;
   if not exists (select 1 from pg_namespace where nspname = alvo) then
     raise exception 'O schema "%" não existe. Confira o nome da adega na linha "alvo".', alvo;
@@ -76,58 +83,14 @@ begin
     raise exception 'A tabela %.usuarios não tem coluna id.', alvo;
   end if;
 
+  -- a conta da loja precisa enxergar o schema pra chamar conferir_pin
+  execute format('grant usage on schema %I to authenticated', alvo);
+
   -- ── Tentativas de PIN (só as funções mexem) ─────────────
   execute format('create table if not exists %I.pin_tentativas (usuario_id %s not null, em timestamptz not null default now())', alvo, tipo_id);
   execute format('create index if not exists pin_tentativas_usuario_em on %I.pin_tentativas (usuario_id, em desc)', alvo);
   execute format('alter table %I.pin_tentativas enable row level security', alvo);
   execute format('revoke all on %I.pin_tentativas from anon, authenticated', alvo);
-
-  -- ── Tabelas: só a conta desta adega ─────────────────────
-  execute format('grant usage on schema %I to anon, authenticated', alvo);
-  for t in
-    select c.relname from pg_class c
-    where c.relnamespace = alvo::regnamespace and c.relkind in ('r', 'p')
-      and c.relname not in ('assinatura', 'pin_tentativas')
-    order by 1
-  loop
-    execute format('alter table %I.%I enable row level security', alvo, t);
-    execute format('drop policy if exists acesso_app on %I.%I', alvo, t);
-    execute format('drop policy if exists acesso_app_config on %I.%I', alvo, t);
-    execute format('drop policy if exists %I on %I.%I', 'loja_' || t, alvo, t);
-    execute format('create policy %I on %I.%I for all to authenticated using ((select public.schema_da_loja()) = %L) with check ((select public.schema_da_loja()) = %L)',
-                   'loja_' || t, alvo, t, alvo, alvo);
-    execute format('revoke all on %I.%I from anon', alvo, t);
-    -- sem TRUNCATE/TRIGGER/REFERENCES: TRUNCATE passaria por cima da policy
-    execute format('revoke all on %I.%I from authenticated', alvo, t);
-    execute format('grant select, insert, update, delete on %I.%I to authenticated', alvo, t);
-  end loop;
-
-  -- Qualquer outra policy liberada somaria acesso (policies se somam): não tranca pela metade
-  select string_agg(format('%s.%s', tablename, policyname), ', ') into sobra
-  from pg_policies
-  where schemaname = alvo and tablename not in ('assinatura', 'pin_tentativas')
-    and policyname not like 'loja\_%' and permissive = 'PERMISSIVE';
-  if sobra is not null then
-    raise exception 'Policies que deixariam a adega aberta: %. Apague essas policies e rode de novo.', sobra;
-  end if;
-
-  -- ── PIN escondido: a conta da loja lê usuarios sem a coluna pin ───
-  execute format('revoke select on %I.usuarios from authenticated', alvo);
-  select string_agg(quote_ident(a.attname), ', ' order by a.attnum) into cols
-  from pg_attribute a
-  where a.attrelid = rel_usuarios::regclass and a.attnum > 0 and not a.attisdropped and a.attname <> 'pin';
-  execute format('grant select (%s) on %I.usuarios to authenticated', cols, alvo);
-
-  -- ── Sequences e tabelas futuras ─────────────────────────
-  execute format('revoke all on all sequences in schema %I from anon, authenticated', alvo);
-  execute format('grant usage, select on all sequences in schema %I to authenticated', alvo);
-  -- tabela/sequence criada depois (migração nova) nasce fechada: rode este script de novo pra ela ganhar a policy
-  execute format('alter default privileges in schema %I revoke all on tables from anon, authenticated', alvo);
-  execute format('alter default privileges in schema %I revoke all on sequences from anon, authenticated', alvo);
-  -- funções: tira o que foi dado por schema aos papéis do app. O execute para PUBLIC que o Postgres dá
-  -- a toda função nova é global e não dá pra tirar só neste schema: função security definer nova
-  -- precisa de "revoke all on function ... from public" explícito (como conferir_pin).
-  execute format('alter default privileges in schema %I revoke all on functions from anon, authenticated', alvo);
 
   -- ── Conferência do PIN ──────────────────────────────────
   execute format($f$
@@ -187,6 +150,79 @@ begin
 end
 $inst$;
 
+create or replace function public.instalar_trava(alvo text)
+returns void
+language plpgsql
+as $inst$
+declare
+  t       text;
+  cols    text;
+  sobra   text;
+  rel_usuarios text;
+begin
+  if alvo is null or alvo = 'public' then
+    raise exception 'A demonstração (public) nunca é trancada. Troque o alvo pelo schema da adega.';
+  end if;
+  if not exists (select 1 from pg_namespace where nspname = alvo) then
+    raise exception 'O schema "%" não existe. Confira o nome da adega na linha "alvo".', alvo;
+  end if;
+  rel_usuarios := format('%I.usuarios', alvo);
+  if to_regclass(rel_usuarios) is null then
+    raise exception 'O schema "%" não tem a tabela usuarios.', alvo;
+  end if;
+  -- ── Login da loja: pin_tentativas + conferir_pin (mesma função usada antes de trancar) ──
+  perform public.preparar_login(alvo);
+
+  -- ── Tabelas: só a conta desta adega ─────────────────────
+  execute format('grant usage on schema %I to anon, authenticated', alvo);
+  for t in
+    select c.relname from pg_class c
+    where c.relnamespace = alvo::regnamespace and c.relkind in ('r', 'p')
+      and c.relname not in ('assinatura', 'pin_tentativas')
+    order by 1
+  loop
+    execute format('alter table %I.%I enable row level security', alvo, t);
+    execute format('drop policy if exists acesso_app on %I.%I', alvo, t);
+    execute format('drop policy if exists acesso_app_config on %I.%I', alvo, t);
+    execute format('drop policy if exists %I on %I.%I', 'loja_' || t, alvo, t);
+    execute format('create policy %I on %I.%I for all to authenticated using ((select public.schema_da_loja()) = %L) with check ((select public.schema_da_loja()) = %L)',
+                   'loja_' || t, alvo, t, alvo, alvo);
+    execute format('revoke all on %I.%I from anon', alvo, t);
+    -- sem TRUNCATE/TRIGGER/REFERENCES: TRUNCATE passaria por cima da policy
+    execute format('revoke all on %I.%I from authenticated', alvo, t);
+    execute format('grant select, insert, update, delete on %I.%I to authenticated', alvo, t);
+  end loop;
+
+  -- Qualquer outra policy liberada somaria acesso (policies se somam): não tranca pela metade
+  select string_agg(format('%s.%s', tablename, policyname), ', ') into sobra
+  from pg_policies
+  where schemaname = alvo and tablename not in ('assinatura', 'pin_tentativas')
+    and policyname not like 'loja\_%' and permissive = 'PERMISSIVE';
+  if sobra is not null then
+    raise exception 'Policies que deixariam a adega aberta: %. Apague essas policies e rode de novo.', sobra;
+  end if;
+
+  -- ── PIN escondido: a conta da loja lê usuarios sem a coluna pin ───
+  execute format('revoke select on %I.usuarios from authenticated', alvo);
+  select string_agg(quote_ident(a.attname), ', ' order by a.attnum) into cols
+  from pg_attribute a
+  where a.attrelid = rel_usuarios::regclass and a.attnum > 0 and not a.attisdropped and a.attname <> 'pin';
+  execute format('grant select (%s) on %I.usuarios to authenticated', cols, alvo);
+
+  -- ── Sequences e tabelas futuras ─────────────────────────
+  execute format('revoke all on all sequences in schema %I from anon, authenticated', alvo);
+  execute format('grant usage, select on all sequences in schema %I to authenticated', alvo);
+  -- tabela/sequence criada depois (migração nova) nasce fechada: rode este script de novo pra ela ganhar a policy
+  execute format('alter default privileges in schema %I revoke all on tables from anon, authenticated', alvo);
+  execute format('alter default privileges in schema %I revoke all on sequences from anon, authenticated', alvo);
+  -- funções: tira o que foi dado por schema aos papéis do app. O execute para PUBLIC que o Postgres dá
+  -- a toda função nova é global e não dá pra tirar só neste schema: função security definer nova
+  -- precisa de "revoke all on function ... from public" explícito (como conferir_pin).
+  execute format('alter default privileges in schema %I revoke all on functions from anon, authenticated', alvo);
+
+end
+$inst$;
+
 -- Desfaz a trava: volta ao acesso liberado de antes (as funções novas ficam, não atrapalham)
 create or replace function public.destrancar(alvo text)
 returns void
@@ -229,6 +265,7 @@ end
 $inst$;
 
 -- Instalador e destrancar são só pra você no SQL Editor: o app não pode chamar
+revoke all on function public.preparar_login(text) from public, anon, authenticated;
 revoke all on function public.instalar_trava(text) from public, anon, authenticated;
 revoke all on function public.destrancar(text) from public, anon, authenticated;
 
@@ -236,7 +273,12 @@ do $$
 declare
   alvo text := 'NOME_DA_ADEGA';   -- <<< SCHEMA DA ADEGA (nunca 'public')
 begin
-  perform public.instalar_trava(alvo);
+  if alvo = 'NOME_DA_ADEGA' then
+    -- rodado sem trocar o nome: só instala/atualiza as funções acima, não tranca nenhuma adega
+    raise notice 'Funções instaladas. Nenhuma adega foi trancada (troque NOME_DA_ADEGA pelo schema para trancar).';
+  else
+    perform public.instalar_trava(alvo);
+  end if;
 end $$;
 
 -- Recarrega o cache da API para as funções aparecerem na hora

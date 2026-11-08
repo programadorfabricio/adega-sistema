@@ -13,6 +13,9 @@ do $$
 declare
   alvo text := 'NOME_DA_ADEGA';   -- <<< SCHEMA DA ADEGA
 begin
+  if alvo = 'NOME_DA_ADEGA' then
+    raise exception 'Troque NOME_DA_ADEGA pelo schema da adega que você quer destrancar.';
+  end if;
   perform public.destrancar(alvo);
 end $$;
 

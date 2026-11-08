@@ -24,10 +24,11 @@ function Acompanhar() {
   const id = useSearchParams().get("id") || "";
   const idValido = /^[0-9a-f-]{36}$/i.test(id);
   const [pedido, setPedido] = useState(undefined); // undefined = carregando, null = não achou
-  const [config, setConfig] = useState({});
+  const [loja, setLoja] = useState({});
 
+  // nome e WhatsApp da loja vêm de cardapio_online() (funciona com a adega trancada)
   useEffect(() => {
-    supabase.from("configuracoes").select("*").limit(1).maybeSingle().then(({ data }) => setConfig(data || {}));
+    supabase.rpc("cardapio_online").then(({ data }) => setLoja(data?.loja || {}));
   }, []);
 
   useEffect(() => {
@@ -45,8 +46,8 @@ function Acompanhar() {
     return () => { ativo = false; clearInterval(t); };
   }, [id, idValido]);
 
-  const nomeLoja = config.nome_estabelecimento || MARCA.nome;
-  const whats = (config.telefone || "").replace(/\D/g, "");
+  const nomeLoja = loja.nome || MARCA.nome;
+  const whats = (loja.telefone || "").replace(/\D/g, "");
   const linkWhats = whats ? `https://wa.me/${whats.length <= 11 ? "55" + whats : whats}?text=${encodeURIComponent(`Olá! Sobre o meu pedido #${pedido?.numero ?? ""}`)}` : "";
 
   const pagina = { minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Outfit', sans-serif" };
