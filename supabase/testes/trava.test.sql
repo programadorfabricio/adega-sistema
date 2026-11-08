@@ -50,6 +50,12 @@ select set_config('t.aleatorio',
    from information_schema.columns where table_schema = 'testeadega' and table_name = 'usuarios' and column_name = 'id'), true);
 update testeadega.usuarios set pin = '1234' where nome = 'Teste';
 
+-- Permissões padrão de hoje (nova-adega.sql passo 3): tabela nova nasce liberada
+alter default privileges in schema testeadega grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema testeadega grant all on sequences to anon, authenticated, service_role;
+-- (o Supabase dá isso em funções no public; aqui simula o pior caso no schema da adega)
+alter default privileges in schema testeadega grant all on functions to anon, authenticated, service_role;
+
 -- ── Instala (2× = pode rodar de novo sem erro) ─────────────────────────────
 select public.instalar_trava('testeadega');
 select public.instalar_trava('testeadega');
@@ -95,6 +101,35 @@ begin
   assert not exists (select 1 from pg_class where relnamespace = 'testeadega'::regnamespace and relkind = 'r' and not relrowsecurity), 'tabela sem RLS';
   assert exists (select 1 from pg_policies where schemaname = 'testeadega' and tablename = 'assinatura' and policyname = 'somente_leitura'), 'assinatura mantém a policy dela';
 end $$;
+
+-- Tabela e função criadas DEPOIS de trancar (migração nova, caixa.sql de novo...) não nascem liberadas
+create table testeadega.tabela_nova_trava (id serial primary key, x text);
+create function testeadega.funcao_nova_trava() returns int language sql as $$ select 1 $$;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"role":"authenticated","app_metadata":{"schema":"testeoutra"}}', true);
+do $$
+declare negou boolean;
+begin
+  assert not has_table_privilege('authenticated', 'testeadega.tabela_nova_trava', 'select,insert,update,delete,truncate,references,trigger'), 'tabela nova liberada pro authenticated';
+  assert not has_table_privilege('anon', 'testeadega.tabela_nova_trava', 'select,insert,update,delete,truncate,references,trigger'), 'tabela nova liberada pro anon';
+  assert not has_sequence_privilege('authenticated', 'testeadega.tabela_nova_trava_id_seq', 'usage,select,update'), 'sequence nova liberada pro authenticated';
+  negou := false;
+  begin perform count(*) from testeadega.tabela_nova_trava; exception when insufficient_privilege then negou := true; end;
+  assert negou, 'conta de outra adega leu a tabela nova';
+  negou := false;
+  begin truncate testeadega.tabela_nova_trava; exception when insufficient_privilege then negou := true; end;
+  assert negou, 'conta de outra adega deu truncate na tabela nova';
+  -- função nova: nenhum grant próprio pro anon/authenticated (o execute de PUBLIC é padrão global do Postgres,
+  -- não dá pra tirar só no schema; função security definer precisa de revoke explícito)
+  assert not exists (
+    select 1 from pg_proc p, aclexplode(p.proacl) a
+    where p.oid = 'testeadega.funcao_nova_trava()'::regprocedure
+      and a.grantee in ('anon'::regrole, 'authenticated'::regrole)
+  ), 'função nova com grant pro anon/authenticated';
+end $$;
+reset role;
+drop table testeadega.tabela_nova_trava;
+drop function testeadega.funcao_nova_trava();
 
 -- ── anon (sem login da loja) ───────────────────────────────────────────────
 set local role anon;
@@ -226,6 +261,13 @@ begin
       and not exists (select 1 from pg_policies p where p.schemaname = 'testeadega' and p.tablename = t.table_name and p.policyname = 'acesso_app')
   ), 'faltou acesso_app depois de destrancar';
 end $$;
+create table testeadega.tabela_pos_destrancar (x text);
+do $$
+begin
+  assert has_table_privilege('anon', 'testeadega.tabela_pos_destrancar', 'select,insert,update,delete'), 'destrancar não devolveu o padrão de tabela nova (anon)';
+  assert has_table_privilege('authenticated', 'testeadega.tabela_pos_destrancar', 'select,insert,update,delete'), 'destrancar não devolveu o padrão de tabela nova (authenticated)';
+end $$;
+drop table testeadega.tabela_pos_destrancar;
 
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);

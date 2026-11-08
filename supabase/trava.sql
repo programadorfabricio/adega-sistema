@@ -121,8 +121,13 @@ begin
   -- ── Sequences e tabelas futuras ─────────────────────────
   execute format('revoke all on all sequences in schema %I from anon, authenticated', alvo);
   execute format('grant usage, select on all sequences in schema %I to authenticated', alvo);
-  execute format('alter default privileges in schema %I revoke all on tables from anon', alvo);
-  execute format('alter default privileges in schema %I revoke all on sequences from anon', alvo);
+  -- tabela/sequence criada depois (migração nova) nasce fechada: rode este script de novo pra ela ganhar a policy
+  execute format('alter default privileges in schema %I revoke all on tables from anon, authenticated', alvo);
+  execute format('alter default privileges in schema %I revoke all on sequences from anon, authenticated', alvo);
+  -- funções: tira o que foi dado por schema aos papéis do app. O execute para PUBLIC que o Postgres dá
+  -- a toda função nova é global e não dá pra tirar só neste schema: função security definer nova
+  -- precisa de "revoke all on function ... from public" explícito (como conferir_pin).
+  execute format('alter default privileges in schema %I revoke all on functions from anon, authenticated', alvo);
 
   -- ── Conferência do PIN ──────────────────────────────────
   execute format($f$
@@ -218,8 +223,8 @@ begin
   end loop;
 
   execute format('grant all on all sequences in schema %I to anon, authenticated', alvo);
+  -- padrão de antes (nova-adega.sql passo 3): tabela nova nasce liberada pro app
   execute format('alter default privileges in schema %I grant all on tables to anon, authenticated', alvo);
-  execute format('alter default privileges in schema %I grant all on sequences to anon, authenticated', alvo);
 end
 $inst$;
 
