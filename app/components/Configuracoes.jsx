@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase, C, base } from "./shared/constants";
+import { supabase, C, base, LOGIN_LOJA } from "./shared/constants";
+import { sairDaContaDaLoja } from "./shared/ContaLoja";
 import { useRecarregar } from "./shared/recarregar.mjs";
 
-export default function Configuracoes() {
+export default function Configuracoes({ usuario }) {
   const [usuarios, setUsuarios] = useState([]);
   const [form, setForm] = useState({ nome: "", cargo: "atendente", pin: "" });
   const [showForm, setShowForm] = useState(false);
@@ -15,7 +16,8 @@ export default function Configuracoes() {
   const [configId, setConfigId] = useState(null);
 
   const loadUsuarios = useCallback(async () => {
-    const { data } = await supabase.from("usuarios").select("*").order("created_at");
+    // sem a coluna pin (com o banco trancado ela nem pode ser lida)
+    const { data } = await supabase.from("usuarios").select("id, nome, cargo, ativo").order("nome");
     setUsuarios(data || []);
   }, []);
 
@@ -86,7 +88,8 @@ export default function Configuracoes() {
   const salvarUsuario = async () => {
     if (!form.nome) return;
     if (!/^\d{4}$/.test(form.pin || "")) { alert("O PIN precisa ter exatamente 4 números."); return; }
-    await supabase.from("usuarios").insert(form);
+    const { error } = await supabase.from("usuarios").insert(form);
+    if (error) { alert("Não foi possível salvar o usuário. Tente de novo."); return; }
     setForm({ nome: "", cargo: "atendente", pin: "" });
     setShowForm(false); loadUsuarios();
   };
@@ -98,8 +101,12 @@ export default function Configuracoes() {
 
   const salvarEdicaoUsuario = async () => {
     if (!editUsuario) return;
-    if (!/^\d{4}$/.test(editUserForm.pin || "")) { alert("O PIN precisa ter exatamente 4 números."); return; }
-    await supabase.from("usuarios").update(editUserForm).eq("id", editUsuario.id);
+    const novoPin = editUserForm.pin || "";
+    if (novoPin && !/^\d{4}$/.test(novoPin)) { alert("O PIN precisa ter exatamente 4 números."); return; }
+    // só manda o pin se foi digitado um novo (o atual não vem do banco)
+    const dados = { nome: editUserForm.nome, cargo: editUserForm.cargo, ...(novoPin ? { pin: novoPin } : {}) };
+    const { error } = await supabase.from("usuarios").update(dados).eq("id", editUsuario.id);
+    if (error) { alert("Não foi possível salvar o usuário. Tente de novo."); return; }
     setEditUsuario(null); loadUsuarios();
   };
 
@@ -191,10 +198,10 @@ export default function Configuracoes() {
                   <div style={{ fontWeight: 700, color: C.text, fontSize: 14, marginBottom: 4 }}>{u.nome}</div>
                   <span style={base.tag(cargoCor[u.cargo] || C.muted)}>{u.cargo}</span>
                 </div>
-                <div style={{ fontSize: 13, color: C.muted }}>{u.pin ? "••••" : "—"}</div>
+                <div style={{ fontSize: 13, color: C.muted }}>••••</div>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditUsuario(u); setEditUserForm({ nome: u.nome, cargo: u.cargo, pin: u.pin || "" }); }}>✏️ Editar</button>
+                <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditUsuario(u); setEditUserForm({ nome: u.nome, cargo: u.cargo, pin: "" }); }}>✏️ Editar</button>
                 <button style={base.btnSm(C.red, "#fff")} onClick={() => removerUsuario(u.id)}>Remover</button>
               </div>
             </div>
@@ -217,10 +224,10 @@ export default function Configuracoes() {
               <tr key={u.id}>
                 <td style={base.td}>{u.nome}</td>
                 <td style={base.td}><span style={base.tag(cargoCor[u.cargo] || C.muted)}>{u.cargo}</span></td>
-                <td style={base.td}>{u.pin ? "••••" : "—"}</td>
+                <td style={base.td}>••••</td>
                 <td style={base.td}>
                   <div style={base.row}>
-                    <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditUsuario(u); setEditUserForm({ nome: u.nome, cargo: u.cargo, pin: u.pin || "" }); }}>✏️ Editar</button>
+                    <button style={base.btnSm(C.blue, "#fff")} onClick={() => { setEditUsuario(u); setEditUserForm({ nome: u.nome, cargo: u.cargo, pin: "" }); }}>✏️ Editar</button>
                     <button style={base.btnSm(C.red, "#fff")} onClick={() => removerUsuario(u.id)}>Remover</button>
                   </div>
                 </td>
@@ -248,8 +255,8 @@ export default function Configuracoes() {
                   </select>
                 </div>
                 <div>
-                  <label style={base.label}>Novo PIN</label>
-                  <input style={base.input} value={editUserForm.pin} onChange={e => setEditUserForm({ ...editUserForm, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="4 números" inputMode="numeric" maxLength={4} />
+                  <label htmlFor="editar-pin" style={base.label}>Novo PIN</label>
+                  <input id="editar-pin" style={base.input} value={editUserForm.pin} onChange={e => setEditUserForm({ ...editUserForm, pin: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="Deixe em branco pra manter o atual" inputMode="numeric" maxLength={4} />
                 </div>
               </div>
               <div style={base.row}>
@@ -303,6 +310,19 @@ export default function Configuracoes() {
           {categorias.length === 0 && <div style={{ color: C.muted, fontSize: 13 }}>Nenhuma categoria cadastrada</div>}
         </div>
       </div>
+
+      {/* Conta da loja (login do aparelho) */}
+      {LOGIN_LOJA && usuario?.cargo === "admin" && (
+        <div style={{ ...base.card, marginTop: 20 }}>
+          <div style={base.sectionTitle}>🔐 Conta da loja</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+            Desconecta este aparelho. Pra usar de novo vai precisar do e-mail e da senha da conta da loja. Os outros aparelhos continuam conectados.
+          </div>
+          <button style={base.btn(C.red, "#fff")} onClick={() => {
+            if (window.confirm("Sair da conta da loja neste aparelho? Vai precisar do e-mail e da senha pra entrar de novo.")) sairDaContaDaLoja();
+          }}>🚪 Sair da conta da loja</button>
+        </div>
+      )}
     </div>
   );
 }

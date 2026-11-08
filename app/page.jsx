@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase, C, base, PAGES, MARCA, PAGINAS_OCULTAS, ESCALA } from "./components/shared/constants";
+import { supabase, C, base, PAGES, MARCA, PAGINAS_OCULTAS, ESCALA, LOGIN_LOJA } from "./components/shared/constants";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import VendaRapida from "./components/VendaRapida";
@@ -14,6 +14,8 @@ import Delivery from "./components/Delivery";
 import Caixa from "./components/Caixa";
 import Compras from "./components/Compras";
 import LogoMarca from "./components/shared/LogoMarca";
+import ContaLoja, { contaDestaAdega, sairDaContaDaLoja } from "./components/shared/ContaLoja";
+import { conferirPin, mensagemPin } from "./components/shared/pin";
 import { useAssinatura, FaixaMensalidade, BloqueioMensalidade } from "./components/shared/AvisoMensalidade";
 
 // ─── TELA DE LOGIN ───────────────────────────────────────
@@ -23,26 +25,31 @@ function LoginScreen({ onLogin }) {
   const [pin, setPin] = useState("");
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(true);
+  const [verificando, setVerificando] = useState(false);
 
   useEffect(() => {
-    supabase.from("usuarios").select("*").eq("ativo", true).order("nome")
+    // nunca o pin: com o banco trancado a coluna nem pode ser lida
+    supabase.from("usuarios").select("id, nome, cargo, ativo").eq("ativo", true).order("nome")
       .then(({ data }) => { setUsuarios(data || []); setLoading(false); });
   }, []);
 
   const digitarPin = (num) => {
-    if (pin.length >= 4) return;
+    if (pin.length >= 4 || verificando) return;
     const novo = pin + num;
     setPin(novo);
     setErro("");
     if (novo.length === 4) verificarPin(novo);
   };
 
-  const verificarPin = (p) => {
+  const verificarPin = async (p) => {
     if (!selecionado) return;
-    if (selecionado.pin === p) {
-      onLogin(selecionado);
+    setVerificando(true);
+    const r = await conferirPin(selecionado.id, p);
+    setVerificando(false);
+    if (r.ok) {
+      onLogin({ ...selecionado, ...r.usuario });
     } else {
-      setErro("PIN incorreto. Tente novamente.");
+      setErro(mensagemPin(r));
       setTimeout(() => setPin(""), 600);
     }
   };
@@ -131,7 +138,32 @@ export default function App() {
   const [usuario, setUsuario] = useState(null);
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Conta da loja (só com LOGIN_LOJA): undefined = conferindo, null = sem conta, objeto = sessão desta adega
+  const [sessao, setSessao] = useState(LOGIN_LOJA ? undefined : null);
+  const [avisoConta, setAvisoConta] = useState("");
   const assinatura = useAssinatura();
+
+  useEffect(() => {
+    if (!LOGIN_LOJA) return;
+    let ativo = true;
+    const aplicar = (session) => {
+      if (!ativo) return;
+      const ok = !!session && contaDestaAdega(session);
+      setSessao(ok ? session : null);
+      if (!ok) setUsuario(null); // saiu da conta da loja (ou ela venceu): volta pra tela da conta
+    };
+    supabase.auth.getSession().then(({ data }) => {
+      const session = data?.session;
+      if (session && !contaDestaAdega(session)) {
+        setAvisoConta("Essa conta não é desta adega");
+        sairDaContaDaLoja();
+      }
+      aplicar(session);
+    });
+    // não chamar o supabase de dentro deste callback (trava o auth): só atualiza o estado
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evento, session) => aplicar(session));
+    return () => { ativo = false; subscription.unsubscribe(); };
+  }, []);
 
   const handleLogin = (user) => {
     setUsuario(user);
@@ -154,11 +186,17 @@ export default function App() {
       case "financeiro": return <Financeiro />;
       case "historico": return <Historico />;
       case "relatorios": return <Relatorios />;
-      case "configuracoes": return <Configuracoes />;
+      case "configuracoes": return <Configuracoes usuario={usuario} />;
       default: return <Dashboard setPage={setPage} />;
     }
   };
 
+  if (LOGIN_LOJA && sessao === undefined) return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit', sans-serif" }}>
+      <div style={{ color: C.muted }}>Carregando...</div>
+    </div>
+  );
+  if (LOGIN_LOJA && !sessao) return <ContaLoja aviso={avisoConta} />;
   if (!usuario) return <><LoginScreen onLogin={handleLogin} /><BloqueioMensalidade info={assinatura} /></>;
 
   return (

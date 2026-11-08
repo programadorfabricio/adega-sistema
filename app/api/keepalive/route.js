@@ -4,12 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { db: { schema: process.env.NEXT_PUBLIC_SUPABASE_SCHEMA || "public" } }
-  );
-  const { error } = await supabase.from("usuarios").select("id").limit(1);
+  // public.ping() (supabase/trava.sql): funciona com a adega trancada e não lê tabela de cliente
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const { error } = await supabase.rpc("ping");
   return Response.json(
     { ok: !error, erro: error?.message ?? null, at: new Date().toISOString() },
     { status: error ? 500 : 200 }

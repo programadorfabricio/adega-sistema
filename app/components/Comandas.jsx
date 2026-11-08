@@ -5,6 +5,7 @@ import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { inserirItensVenda } from "./shared/custo";
 import { CampoDesconto, calcDesconto, inserirVenda, reajustarLinhas, num } from "./shared/pagamento";
+import { conferirPin, mensagemPin } from "./shared/pin";
 import { useRecarregar } from "./shared/recarregar.mjs";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -404,9 +405,9 @@ export default function Comandas({ usuario }) {
   // Recebe o PIN completo (o estado ainda pode estar com 3 dígitos quando o 4º é digitado)
   const confirmarRemocaoComPin = async (pinCompleto) => {
     if (!modalPin) return;
-    const { data: u } = await supabase.from("usuarios").select("pin").eq("id", usuario?.id).single();
-    if (u?.pin !== pinCompleto) {
-      setPinErro("PIN incorreto!");
+    const r = await conferirPin(usuario?.id, pinCompleto);
+    if (!r.ok) {
+      setPinErro(mensagemPin(r));
       setTimeout(() => { setPinErro(""); setPinDigitado(""); }, 1500);
       return;
     }
