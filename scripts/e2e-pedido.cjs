@@ -324,6 +324,48 @@ async function testeCardapioAtualiza(browser) {
   console.log("OK cardápio: fecha, esconde produto e reabre sozinho sem perder o carrinho");
 }
 
+// App novo publicado antes de rodar o pedido-online.sql de novo (adega sem cardapio_online):
+// o cardápio e o acompanhamento caem nos selects antigos e continuam funcionando
+async function testeSemCardapioOnline(browser) {
+  preparar();
+  const loja = sql(`select nome_estabelecimento from ${S}.configuracoes limit 1`);
+  const p1 = await rpc("pedido_online", { p_cliente: { nome: "Sem Func E2E", telefone: "19977776666", endereco: "Rua S, 1", bairro: "Centro", forma_pagamento: "pix" }, p_itens: [{ produto_id: idProduto("Cerveja E2E"), quantidade: 1 }] });
+  sql(`update ${S}.produtos set preco_custo = 4.56 where nome = 'Cerveja E2E'`);
+  sql(`drop function ${S}.cardapio_online(); notify pgrst, 'reload schema';`);
+  try {
+    await new Promise(r => setTimeout(r, 1500));
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const pg = await ctx.newPage();
+    const erros = []; pg.on("pageerror", e => erros.push(String(e)));
+    const comCusto = [];
+    pg.on("response", async (r) => {
+      if (!r.url().includes("/rest/v1/")) return;
+      const t = await r.text().catch(() => "");
+      if (t.includes("preco_custo")) comCusto.push(r.url());
+    });
+    await pg.goto(`${APP}/pedir`);
+    await pg.getByText("Cerveja E2E").waitFor({ timeout: 10000 });
+    assert.ok(await pg.getByText("Copão E2E").isVisible(), "produto sem controle de estoque deveria aparecer");
+    if (loja) assert.ok(await pg.getByText(loja, { exact: true }).isVisible(), "nome da loja no cardápio (sem cardapio_online)");
+    await pg.getByRole("button", { name: "Adicionar Cerveja E2E" }).click();
+    await pg.getByRole("button", { name: /Continuar/ }).click();
+    await pg.getByLabel("Bairro").selectOption("Centro");
+    sql(`update ${S}.configuracoes set pedido_online_aberto = false`);
+    await pg.goto(`${APP}/pedir`);
+    await pg.getByText("Fechado no momento").waitFor({ timeout: 10000 });
+    sql(`update ${S}.configuracoes set pedido_online_aberto = true`);
+    await pg.goto(`${APP}/pedir/acompanhar?id=${p1.id}`);
+    await pg.locator("[data-status='novo']").waitFor({ timeout: 10000 });
+    if (loja) assert.ok(await pg.getByText(loja).first().isVisible(), "nome da loja no acompanhamento (sem cardapio_online)");
+    assert.deepEqual(comCusto, [], `respostas com preco_custo: ${comCusto}`);
+    assert.deepEqual(erros, [], `erros na página: ${erros}`);
+    await ctx.close();
+  } finally {
+    sql(`update ${S}.configuracoes set pedido_online_aberto = true; select public.instalar_pedido_online('${S}'); notify pgrst, 'reload schema';`);
+  }
+  console.log("OK sem cardapio_online: cardápio, fechado e acompanhamento pelos selects antigos");
+}
+
 (async () => {
   const qual = process.argv[2] || "tudo";
   const browser = await chromium.launch();
@@ -331,9 +373,10 @@ async function testeCardapioAtualiza(browser) {
     if (qual === "revisao") { await testeRevisao(browser); console.log("E2E PASSOU"); return; }
     if (qual === "cardapio") { await testeCardapioAtualiza(browser); console.log("E2E PASSOU"); return; }
     if (qual === "recarga") { await testeRecarga(browser); console.log("E2E PASSOU"); return; }
+    if (qual === "semfuncao") { await testeSemCardapioOnline(browser); console.log("E2E PASSOU"); return; }
     if (qual === "interruptor") { await testeInterruptor(browser); console.log("E2E PASSOU"); return; }
     await testeDelivery(browser);
-    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); await testeInterruptor(browser); await testeRecarga(browser); await testeCardapioAtualiza(browser); }
+    if (qual === "tudo") { await testeTudo(browser); await testeRevisao(browser); await testeInterruptor(browser); await testeRecarga(browser); await testeCardapioAtualiza(browser); await testeSemCardapioOnline(browser); }
     console.log("E2E PASSOU");
   } catch (e) {
     console.error("E2E FALHOU:", e.message);

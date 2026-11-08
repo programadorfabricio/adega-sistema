@@ -32,6 +32,14 @@ Exemplo usado abaixo: cliente **Adega Premier**, schema **`premier`**.
 1. **SQL Editor → aba nova:** cole `supabase/nova-adega.sql`, troque `'magal'` por `'premier'` e rode.
    No fim aparece *"Adega premier criada"*. Se aparecer *"Trava do banco não instalada"*, faça o
    item 0 e rode o `nova-adega.sql` de novo.
+   **O schema `premier` já existia** (criado antes do `trava.sql` existir)? Ele está aberto e sem a
+   conferência do PIN: com `NEXT_PUBLIC_LOGIN_LOJA=1` todo PIN daria errado. Rode o `nova-adega.sql`
+   de novo (é seguro) ou o `supabase/trava.sql` com `alvo = 'premier'`.
+   **Confira antes de seguir** (tem que dar `1`):
+   ```sql
+   select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'premier' and p.proname = 'conferir_pin';
+   ```
 2. **Project Settings → Data API → Exposed schemas:** adicione `premier` e salve.
 3. **Mensalidade** (ajuste data, valor e Pix):
    ```sql

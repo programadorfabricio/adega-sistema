@@ -91,6 +91,13 @@ begin
   execute format('create index if not exists pin_tentativas_usuario_em on %I.pin_tentativas (usuario_id, em desc)', alvo);
   execute format('alter table %I.pin_tentativas enable row level security', alvo);
   execute format('revoke all on %I.pin_tentativas from anon, authenticated', alvo);
+  -- fora do tempo real (o tempo-real.sql antigo punha todas as tabelas) e com replica identity,
+  -- senão o delete do conferir_pin falha ("does not have a replica identity and publishes deletes")
+  execute format('alter table %I.pin_tentativas replica identity full', alvo);
+  if exists (select 1 from pg_catalog.pg_publication_tables
+             where pubname = 'supabase_realtime' and schemaname = alvo and tablename = 'pin_tentativas') then
+    execute format('alter publication supabase_realtime drop table %I.pin_tentativas', alvo);
+  end if;
 
   -- ── Conferência do PIN ──────────────────────────────────
   execute format($f$
@@ -211,7 +218,8 @@ begin
 
   -- ── Sequences e tabelas futuras ─────────────────────────
   execute format('revoke all on all sequences in schema %I from anon, authenticated', alvo);
-  execute format('grant usage, select on all sequences in schema %I to authenticated', alvo);
+  -- só usage (nextval do id): select deixaria outra conta ler o contador (last_value)
+  execute format('grant usage on all sequences in schema %I to authenticated', alvo);
   -- tabela/sequence criada depois (migração nova) nasce fechada: rode este script de novo pra ela ganhar a policy
   execute format('alter default privileges in schema %I revoke all on tables from anon, authenticated', alvo);
   execute format('alter default privileges in schema %I revoke all on sequences from anon, authenticated', alvo);

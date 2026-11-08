@@ -62,6 +62,11 @@ end $$;
 drop table if exists testeadega.pin_tentativas;
 select public.preparar_login('testeadega');
 select public.preparar_login('testeadega');   -- 2× = pode rodar de novo sem erro
+-- tempo-real.sql antigo punha pin_tentativas no tempo real: sem replica identity, o delete do conferir_pin quebrava
+do $$ begin
+  if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then create publication supabase_realtime; end if;
+end $$;
+alter publication supabase_realtime add table testeadega.pin_tentativas;
 do $$
 declare recusou boolean;
 begin
@@ -106,6 +111,12 @@ begin
 end $$;
 reset role;
 delete from testeadega.pin_tentativas;
+-- preparar_login de novo tira pin_tentativas do tempo real
+select public.preparar_login('testeadega');
+do $$ begin
+  assert not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'testeadega' and tablename = 'pin_tentativas'),
+    'pin_tentativas não pode ficar no tempo real';
+end $$;
 
 -- Permissões padrão de hoje (nova-adega.sql passo 3): tabela nova nasce liberada
 alter default privileges in schema testeadega grant all on tables to anon, authenticated, service_role;
@@ -236,6 +247,10 @@ begin
   assert n = 0, 'outra adega apagou produtos';
   r := public.t_pin('testeadega', current_setting('t.admin'), '1234');
   assert (r->>'ok')::boolean = false, 'conferir_pin aceitou conta de outra adega: ' || r::text;
+  -- sequences: outra adega não lê o contador (last_value) da testeadega
+  negou := false;
+  begin perform last_value from testeadega.usuarios_id_seq; exception when insufficient_privilege then negou := true; end;
+  assert negou, 'outra adega leu last_value de sequence da testeadega';
   -- a própria adega funciona
   assert (select count(*) from testeoutra.produtos) = 1, 'testeoutra não lê os próprios produtos';
   insert into testeoutra.vendas (total) values (3);
@@ -254,6 +269,11 @@ begin
   get diagnostics n = row_count;
   assert n = 1, 'loja não apagou a própria venda';
   assert (select count(*) from testeoutra.produtos) = 0, 'testeadega enxergou produtos da outra';
+  -- insert que usa sequence (id serial/identity) continua funcionando só com usage na sequence
+  insert into testeadega.usuarios (nome, cargo, pin, ativo) values ('Seq Teste', 'caixa', '7777', true);
+  delete from testeadega.usuarios where nome = 'Seq Teste';
+  get diagnostics n = row_count;
+  assert n = 1, 'loja não inseriu usuário (sequence)';
 
   -- PIN escondido
   negou := false;

@@ -5,6 +5,7 @@ import { supabase, C, base, fmt, MARCA, ESCALA, PEDIDO_ONLINE, semEstoque } from
 import LogoMarca from "../components/shared/LogoMarca";
 import { adicionar, alterarQtd, totais, lerCliente, salvarCliente } from "./carrinho.mjs";
 import { FORMAS, NaoEncontrada } from "./ui";
+import { lerCardapio } from "./cardapio.mjs";
 import { useRecarregar } from "../components/shared/recarregar.mjs";
 
 // cardapio_online já manda só os ativos com preço e estoque; o filtro fica de garantia
@@ -31,9 +32,9 @@ function Cardapio() {
   // Lê cardápio, bairros e se a loja está aberta. Roda ao abrir, a cada 30 s e ao voltar pra aba,
   // pra quem está com a página aberta ver "Fechado" e produto esgotado sumir sem recarregar.
   // Tudo vem de <adega>.cardapio_online() (supabase/pedido-online.sql): funciona com a adega trancada
-  // (o cliente final não tem login) e não expõe custo nem dados internos.
+  // (o cliente final não tem login) e não expõe custo nem dados internos. Ver ./cardapio.mjs.
   const carregar = useCallback(async () => {
-    const { data, error } = await supabase.rpc("cardapio_online");
+    const { data, error } = await lerCardapio(supabase);
     if (error || !data) { setCarregando(false); return; } // sinal fraco: mantém o que já tem
     setProdutos((data.produtos || []).filter(disponivel));
     setBairros(data.bairros || []);

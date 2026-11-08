@@ -53,6 +53,9 @@ funcionando exatamente como hoje (sem conta da loja).
    - E-mail: um e-mail só da loja (ex.: `loja.magal@seudominio.com`; não precisa existir caixa de
      entrada, mas guarde bem).
    - Senha: uma senha forte. Anote — o cliente vai precisar dela em cada aparelho.
+     O dono deve **guardar essa senha à mão** (ex.: anotada no caixa ou no celular dele): a tela
+     "Entrar com a conta da loja" pode voltar sozinha num aparelho (ex.: ficou dias sem internet e o
+     acesso venceu, ou deu erro definitivo ao renovar o acesso) e aí precisa digitar de novo.
    - Marque **"Auto Confirm User"**.
 2. **SQL Editor:** ligue a conta à adega (troque o schema e o e-mail):
    ```sql
@@ -100,6 +103,9 @@ embaixo) por `'magal'` e rode. Pode rodar de novo sem erro.
 - [ ] Delivery e Caixa: abrir e fechar um caixa de teste
 - [ ] Se usa pedido online: fazer um pedido pelo celular em `/pedir` (sem login) e ver chegar em
       **Delivery → 🔔 Pedidos online**
+- [ ] Tempo real: com dois aparelhos abertos, mude algo num deles (ex.: uma venda ou um item na
+      comanda) e veja aparecer no outro em segundos. Se demorar até 30 s, é a recarga automática que
+      está cobrindo e o tempo real não está chegando — avise o Fabrício.
 
 Tudo certo? Pronto, essa adega está protegida.
 
@@ -117,6 +123,10 @@ Algum aparelho preso na tela "Entrar com a conta da loja" (ex.: perdeu a senha)?
 
 **Nunca apague a variável com o banco ainda trancado**: o app volta a entrar sem conta da loja, o banco
 trancado não deixa e o sistema para de carregar.
+
+**Nunca volte o deploy** (Instant Rollback da Vercel, "Promote" de um deploy antigo ou voltar a `main`
+para antes da segurança) **com uma adega trancada**: a versão antiga não tem a conta da loja e para de
+carregar nela. Destranque antes (todas as adegas trancadas daquele deploy) e só depois volte.
 
 Depois descubra o que faltou (normalmente: algum aparelho que não entrou com a conta da loja) e refaça
 a partir do passo 3.2 (ou 3.4, se a variável continua ligada).

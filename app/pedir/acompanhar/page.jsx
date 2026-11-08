@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { supabase, C, base, fmt, hora, MARCA, ESCALA, PEDIDO_ONLINE } from "../../components/shared/constants";
 import LogoMarca from "../../components/shared/LogoMarca";
 import { NaoEncontrada } from "../ui";
+import { lerCardapio } from "../cardapio.mjs";
 
 const ETAPAS = [
   { id: "recebido", label: "Recebido", desc: "A adega recebeu seu pedido" },
@@ -28,7 +29,7 @@ function Acompanhar() {
 
   // nome e WhatsApp da loja vêm de cardapio_online() (funciona com a adega trancada)
   useEffect(() => {
-    supabase.rpc("cardapio_online").then(({ data }) => setLoja(data?.loja || {}));
+    lerCardapio(supabase).then(({ data }) => setLoja(data?.loja || {}));
   }, []);
 
   useEffect(() => {
