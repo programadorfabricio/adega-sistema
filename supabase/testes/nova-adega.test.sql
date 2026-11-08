@@ -25,14 +25,23 @@ begin
   -- instalador não pode ser chamado pelo app
   assert not has_function_privilege('anon', 'public.instalar_pedido_online(text)', 'execute'), 'instalador exposto ao anon';
 
-  -- configuracoes gravável (botão liga/desliga e Configurações)
-  assert has_table_privilege('anon', 'testenovo.configuracoes', 'update'), 'configuracoes gravável';
+  -- configuracoes gravável pela conta da loja (botão liga/desliga e Configurações)
+  assert has_table_privilege('authenticated', 'testenovo.configuracoes', 'update'), 'configuracoes gravável';
   assert exists (select 1 from pg_policies where schemaname = 'testenovo' and tablename = 'configuracoes' and cmd = 'ALL'), 'policy em configuracoes';
+
+  -- nasce trancada: anon não lê nada, só a conta da loja
+  assert not has_table_privilege('anon', 'testenovo.produtos', 'select'), 'anon lê testenovo.produtos';
+  assert not has_table_privilege('anon', 'testenovo.usuarios', 'select'), 'anon lê testenovo.usuarios';
+  assert exists (select 1 from pg_policies where schemaname = 'testenovo' and tablename = 'produtos' and policyname = 'loja_produtos'), 'policy loja_produtos';
+  assert not exists (select 1 from pg_policies where schemaname = 'testenovo' and policyname = 'acesso_app'), 'sobrou acesso_app';
+  assert not has_column_privilege('authenticated', 'testenovo.usuarios', 'pin', 'select'), 'conta da loja lê o pin';
+  assert exists (select 1 from pg_proc where pronamespace = 'testenovo'::regnamespace and proname = 'conferir_pin'), 'conferir_pin instalado';
 
   -- tempo real em todas as tabelas
   select string_agg(t.table_name, ', ') into faltando
   from information_schema.tables t
   where t.table_schema = 'testenovo' and t.table_type = 'BASE TABLE'
+    and t.table_name <> 'pin_tentativas'   -- interna da trava, ninguém do app lê
     and not exists (select 1 from pg_publication_tables p where p.pubname = 'supabase_realtime' and p.schemaname = 'testenovo' and p.tablename = t.table_name);
   assert faltando is null, 'fora do tempo real: ' || faltando;
 

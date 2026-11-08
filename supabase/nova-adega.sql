@@ -1,8 +1,8 @@
 -- ============================================================
 -- NOVA ADEGA: cria um schema próprio para um cliente, copiando a
 -- estrutura do schema "public" (demo), já com TUDO que o sistema tem:
--- tabelas, permissões, tempo real, mensalidade (30 dias) e pedido online
--- (instalado, mas só aparece se ligar NEXT_PUBLIC_PEDIDO_ONLINE=1).
+-- tabelas, permissões, tempo real, mensalidade (30 dias), pedido online
+-- (instalado, mas só aparece se ligar NEXT_PUBLIC_PEDIDO_ONLINE=1) e a trava do banco.
 --
 -- Passo a passo completo do cliente novo: docs/NOVO-CLIENTE.md
 --
@@ -12,6 +12,8 @@
 --   3. Em Settings → API (Data API) → "Exposed schemas", adicione o schema novo
 --   4. No deploy da Vercel do cliente, defina NEXT_PUBLIC_SUPABASE_SCHEMA=<nome>
 --   5. Admin inicial: Admin / PIN 1234 (troque no primeiro acesso)
+--   6. A adega nasce TRANCADA (supabase/trava.sql): crie a conta da loja em Authentication
+--      e ligue ao schema (app_metadata.schema). O app precisa de NEXT_PUBLIC_LOGIN_LOJA=1.
 -- ============================================================
 
 do $$
@@ -114,6 +116,13 @@ begin
   execute format($q$insert into %I.usuarios (nome, cargo, pin, ativo)
                    select 'Admin', 'admin', '1234', true
                    where not exists (select 1 from %I.usuarios where cargo = 'admin')$q$, novo, novo);
+
+  -- 9. Trava do banco: só a conta da loja (Supabase Auth, app_metadata.schema = novo) acessa este schema
+  if to_regprocedure('public.instalar_trava(text)') is not null then
+    perform public.instalar_trava(novo);
+  else
+    raise notice 'Trava do banco não instalada: rode supabase/trava.sql uma vez e depois este script de novo.';
+  end if;
 
   raise notice 'Adega % criada. Falta: Exposed schemas (Data API) + projeto na Vercel. Veja docs/NOVO-CLIENTE.md', novo;
 end $$;
