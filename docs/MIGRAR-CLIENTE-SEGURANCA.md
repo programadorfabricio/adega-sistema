@@ -27,9 +27,13 @@ Faça isso **uma única vez** (vale para todas as adegas do projeto).
    (O provedor "Email" em si continua ligado.)
 2. **SQL Editor → aba nova:** cole o `supabase/pedido-online.sql` inteiro e rode **do jeito que está**
    (instala o cardápio novo na demonstração, `public`).
-   Depois, **para cada adega que já existe** (ex.: `magal`), rode o mesmo arquivo de novo trocando
-   `'public'` na linha `alvo` pelo schema dela. Isso instala a função `cardapio_online`, que o
-   `/pedir` novo usa. Pode rodar mais de uma vez sem erro.
+   Depois, **para cada adega que já existe** (ex.: `magal`) **e cada demonstração que usa o cardápio
+   online** (ex.: `demotabacaria`, `demogas`), rode o mesmo arquivo de novo trocando `'public'` na
+   linha `alvo` pelo schema dela. Isso instala a função `cardapio_online`, que o `/pedir` novo usa.
+   Pode rodar mais de uma vez sem erro. Para ver a lista de todos os schemas que precisam, rode:
+   ```sql
+   select table_schema from information_schema.tables where table_name = 'configuracoes' order by 1;
+   ```
 3. **SQL Editor → aba nova:** cole o `supabase/trava.sql` inteiro e rode **do jeito que está**, sem
    trocar `NOME_DA_ADEGA`. Ele só instala as funções (login, PIN, ping, trancar, destrancar) e
    **não tranca nenhuma adega**. No fim aparece o aviso:
@@ -62,6 +66,13 @@ funcionando exatamente como hoje (sem conta da loja).
 
 ### 3.2 Ligar a tela da conta da loja
 
+> **Atenção:** assim que o Redeploy terminar, **todos** os aparelhos da adega passam a mostrar
+> "Entrar com a conta da loja" (mesmo com o banco ainda aberto) e ninguém usa o sistema até entrar.
+> Por isso, **antes** do Redeploy:
+> - mande pro dono o e-mail e a senha da loja (do passo 3.1);
+> - combine um horário com a adega fechada ou parada e o dono disponível (em ligação com você);
+> - logo depois do Redeploy, ele entra com a conta em cada aparelho (passo 3.3).
+
 1. **Vercel → projeto da adega → Settings → Environment Variables:** adicione
    `NEXT_PUBLIC_LOGIN_LOJA` = `1`.
 2. **Deployments → ⋯ → Redeploy** (sem isso a variável não vale).
@@ -73,7 +84,9 @@ Em **cada** celular/tablet/computador da adega: abra o sistema → aparece
 Depois aparece a lista de usuários de sempre e entra com o PIN.
 O aparelho fica lembrado: não precisa digitar o e-mail de novo amanhã.
 
-Confira que **todos** os aparelhos já passaram por isso antes de seguir.
+Confira que **todos** os aparelhos já passaram por isso antes de seguir. Cliente longe (atendimento
+remoto)? Pergunte ao dono quantos aparelhos usam o sistema e peça uma foto da tela do PIN ("Quem está
+acessando?") em cada um deles.
 
 ### 3.4 Trancar o banco da adega
 
@@ -95,12 +108,18 @@ Tudo certo? Pronto, essa adega está protegida.
 ## Deu problema? Destrancar
 
 **SQL Editor:** cole o `supabase/destrancar-adega.sql`, troque `'NOME_DA_ADEGA'` por `'magal'` e rode.
-O banco volta a ficar aberto como antes e o app volta a funcionar na hora (com ou sem a conta da loja).
-Depois descubra o que faltou (normalmente: algum aparelho que não entrou com a conta da loja) e
-tranque de novo no passo 3.4.
+O banco volta a ficar aberto como antes e os aparelhos **que já entraram com a conta da loja** voltam a
+funcionar na hora.
 
-Se quiser voltar também a tela antiga (sem conta da loja): apague `NEXT_PUBLIC_LOGIN_LOJA` na Vercel e
-faça **Redeploy**.
+Algum aparelho preso na tela "Entrar com a conta da loja" (ex.: perdeu a senha)? Aí, **nesta ordem**:
+1. primeiro o `destrancar-adega.sql` acima;
+2. depois apague `NEXT_PUBLIC_LOGIN_LOJA` na Vercel e faça **Redeploy** (volta a tela antiga, sem conta da loja).
+
+**Nunca apague a variável com o banco ainda trancado**: o app volta a entrar sem conta da loja, o banco
+trancado não deixa e o sistema para de carregar.
+
+Depois descubra o que faltou (normalmente: algum aparelho que não entrou com a conta da loja) e refaça
+a partir do passo 3.2 (ou 3.4, se a variável continua ligada).
 
 ## Depois de trancada: cuidados
 

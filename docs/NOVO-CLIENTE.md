@@ -24,9 +24,11 @@ Exemplo usado abaixo: cliente **Adega Premier**, schema **`premier`**.
 ## 2. Supabase (5 min)
 
 0. **Só na primeira vez no projeto:** rode uma vez `supabase/pedido-online.sql` e `supabase/trava.sql`
-   do jeito que estão (sem trocar nada) e deixe **Authentication → Sign In / Providers → "Allow new
-   users to sign up" DESLIGADO**. Se já fez isso numa adega anterior, pule.
-   (Detalhes em [MIGRAR-CLIENTE-SEGURANCA.md](MIGRAR-CLIENTE-SEGURANCA.md), passo 1.)
+   do jeito que estão (sem trocar nada), deixe **Authentication → Sign In / Providers → "Allow new
+   users to sign up" DESLIGADO** e confira que o app novo (com a tela da conta da loja) já está
+   publicado. Com o `trava.sql` instalado, o `nova-adega.sql` cria a adega **já trancada**: o app
+   antigo não abriria nela. Se já fez isso numa adega anterior, pule.
+   (Detalhes em [MIGRAR-CLIENTE-SEGURANCA.md](MIGRAR-CLIENTE-SEGURANCA.md), passos 1 e 2.)
 1. **SQL Editor → aba nova:** cole `supabase/nova-adega.sql`, troque `'magal'` por `'premier'` e rode.
    No fim aparece *"Adega premier criada"*. Se aparecer *"Trava do banco não instalada"*, faça o
    item 0 e rode o `nova-adega.sql` de novo.
