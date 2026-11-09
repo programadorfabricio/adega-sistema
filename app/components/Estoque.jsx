@@ -179,7 +179,7 @@ export default function Estoque() {
 
   const abrirEdicao = async (p) => {
     setEditModal(p);
-    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}), ...("preco_custo" in p ? { preco_custo: p.preco_custo ?? "" } : {}), ...("codigo_barras" in p ? { codigo_barras: p.codigo_barras ?? "" } : {}) });
+    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_atual: p.estoque_atual ?? 0, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}), ...("preco_custo" in p ? { preco_custo: p.preco_custo ?? "" } : {}), ...("codigo_barras" in p ? { codigo_barras: p.codigo_barras ?? "" } : {}) });
     setErroEdit("");
     setReceita([]);
     const { data, error } = await supabase.from("produto_insumos").select("insumo_id, quantidade").eq("produto_id", p.id);
@@ -190,6 +190,11 @@ export default function Estoque() {
   const salvarEdicao = async () => {
     if (!editModal) return;
     const dados = { ...editForm, preco: Number(editForm.preco), estoque_minimo: Number(editForm.estoque_minimo) };
+    const qtdNova = Math.max(0, Math.floor(Number(String(editForm.estoque_atual ?? "").replace(",", "."))));
+    const qtdAntiga = Number(editModal.estoque_atual) || 0;
+    if (dados.controla_estoque !== false && String(editForm.estoque_atual ?? "").trim() !== "" && !isNaN(qtdNova)) dados.estoque_atual = qtdNova;
+    else delete dados.estoque_atual;
+    if (dados.estoque_atual === qtdAntiga) delete dados.estoque_atual; // não mexeu: não sobrescreve venda feita enquanto editava
     if ("volume_ml" in dados) dados.volume_ml = Number(dados.volume_ml) > 0 ? Number(dados.volume_ml) : null;
     if ("preco_custo" in dados) dados.preco_custo = numOuNull(dados.preco_custo);
     if ("codigo_barras" in dados) {
@@ -202,6 +207,10 @@ export default function Estoque() {
     setErroEdit("");
     const { error: erroUpd } = await supabase.from("produtos").update(dados).eq("id", editModal.id);
     if (erroUpd) { setErroEdit("Não foi possível salvar: " + erroUpd.message); return; }
+    if ("estoque_atual" in dados && dados.estoque_atual !== qtdAntiga) {
+      const diff = dados.estoque_atual - qtdAntiga;
+      await supabase.from("estoque_movimentacoes").insert({ produto_id: editModal.id, tipo: diff > 0 ? "entrada" : "saida", quantidade: Math.abs(diff), motivo: "ajuste manual (editar)" });
+    }
     if (temReceitas) {
       await supabase.from("produto_insumos").delete().eq("produto_id", editModal.id);
       const linhas = receita.filter(r => r.insumo_id && Number(r.quantidade) > 0 && r.insumo_id !== editModal.id)
@@ -323,6 +332,12 @@ export default function Estoque() {
                     <input style={base.input} type="number" placeholder="0,00" value={editForm.preco_custo} onChange={e => setEditForm({ ...editForm, preco_custo: e.target.value })} />
                     {numOuNull(editForm.preco_custo) !== null && <div style={{ marginTop: 4 }}>{linhaLucro(editForm.preco, numOuNull(editForm.preco_custo), false)}</div>}
                   </>)}
+                </div>
+              )}
+              {editForm.controla_estoque !== false && (
+                <div>
+                  <label style={base.label}>Quantidade em estoque</label>
+                  <input style={base.input} type="number" min="0" inputMode="numeric" value={editForm.estoque_atual} onChange={e => setEditForm({ ...editForm, estoque_atual: e.target.value })} />
                 </div>
               )}
               <div>
