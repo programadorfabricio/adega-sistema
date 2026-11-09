@@ -90,6 +90,7 @@ export default function Estoque() {
   const [qtdEntrada, setQtdEntrada] = useState("");
   const [editModal, setEditModal] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [erroEdit, setErroEdit] = useState("");
   const [receita, setReceita] = useState([]);          // [{ insumo_id, quantidade }]
   const [temReceitas, setTemReceitas] = useState(true); // false se a tabela ainda não existe
   const [erroForm, setErroForm] = useState("");
@@ -178,7 +179,8 @@ export default function Estoque() {
 
   const abrirEdicao = async (p) => {
     setEditModal(p);
-    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}), ...("preco_custo" in p ? { preco_custo: p.preco_custo ?? "" } : {}) });
+    setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}), ...("preco_custo" in p ? { preco_custo: p.preco_custo ?? "" } : {}), ...("codigo_barras" in p ? { codigo_barras: p.codigo_barras ?? "" } : {}) });
+    setErroEdit("");
     setReceita([]);
     const { data, error } = await supabase.from("produto_insumos").select("insumo_id, quantidade").eq("produto_id", p.id);
     setTemReceitas(!error);
@@ -190,7 +192,16 @@ export default function Estoque() {
     const dados = { ...editForm, preco: Number(editForm.preco), estoque_minimo: Number(editForm.estoque_minimo) };
     if ("volume_ml" in dados) dados.volume_ml = Number(dados.volume_ml) > 0 ? Number(dados.volume_ml) : null;
     if ("preco_custo" in dados) dados.preco_custo = numOuNull(dados.preco_custo);
-    await supabase.from("produtos").update(dados).eq("id", editModal.id);
+    if ("codigo_barras" in dados) {
+      dados.codigo_barras = String(dados.codigo_barras || "").trim() || null;
+      if (dados.codigo_barras) {
+        const { data: outro } = await supabase.from("produtos").select("nome").eq("codigo_barras", dados.codigo_barras).eq("ativo", true).neq("id", editModal.id).limit(1);
+        if (outro?.length) { setErroEdit(`Esse código de barras já está no produto "${outro[0].nome}".`); return; }
+      }
+    }
+    setErroEdit("");
+    const { error: erroUpd } = await supabase.from("produtos").update(dados).eq("id", editModal.id);
+    if (erroUpd) { setErroEdit("Não foi possível salvar: " + erroUpd.message); return; }
     if (temReceitas) {
       await supabase.from("produto_insumos").delete().eq("produto_id", editModal.id);
       const linhas = receita.filter(r => r.insumo_id && Number(r.quantidade) > 0 && r.insumo_id !== editModal.id)
@@ -336,6 +347,12 @@ export default function Estoque() {
                 <label style={base.label}>Unidade</label>
                 <input style={base.input} value={editForm.unidade} onChange={e => setEditForm({ ...editForm, unidade: e.target.value })} />
               </div>
+              {"codigo_barras" in editForm && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={base.label}>Código de Barras</label>
+                  <input style={base.input} inputMode="numeric" placeholder="Bipe ou digite..." value={editForm.codigo_barras} onChange={e => setEditForm({ ...editForm, codigo_barras: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }} />
+                </div>
+              )}
               {"volume_ml" in editForm && editForm.controla_estoque !== false && (
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={base.label}>Vende fracionado? <span style={{ color: C.muted }}>· garrafa usada em dose (ex.: 1000 ml) ou fardo vendido em latas (ex.: 12 un)</span></label>
@@ -378,6 +395,7 @@ export default function Estoque() {
               <button style={base.btn(C.green, "#fff")} onClick={salvarEdicao}>Salvar</button>
               <button style={base.btnOutline} onClick={() => setEditModal(null)}>Cancelar</button>
             </div>
+            {erroEdit && <div style={{ ...base.alert(C.red), marginTop: 12, marginBottom: 0 }}>⚠️ {erroEdit}</div>}
           </div>
         </div>
       )}
