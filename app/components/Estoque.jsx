@@ -91,6 +91,7 @@ export default function Estoque() {
   const [editModal, setEditModal] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [erroEdit, setErroEdit] = useState("");
+  const [conflitoBarras, setConflitoBarras] = useState(null); // { id, nome } do produto que já tem o código
   const [receita, setReceita] = useState([]);          // [{ insumo_id, quantidade }]
   const [temReceitas, setTemReceitas] = useState(true); // false se a tabela ainda não existe
   const [erroForm, setErroForm] = useState("");
@@ -180,15 +181,16 @@ export default function Estoque() {
   const abrirEdicao = async (p) => {
     setEditModal(p);
     setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_atual: p.estoque_atual ?? 0, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}), ...("preco_custo" in p ? { preco_custo: p.preco_custo ?? "" } : {}), ...("codigo_barras" in p ? { codigo_barras: p.codigo_barras ?? "" } : {}) });
-    setErroEdit("");
+    setErroEdit(""); setConflitoBarras(null);
     setReceita([]);
     const { data, error } = await supabase.from("produto_insumos").select("insumo_id, quantidade").eq("produto_id", p.id);
     setTemReceitas(!error);
     setReceita((data || []).map(r => ({ insumo_id: r.insumo_id, quantidade: r.quantidade })));
   };
 
-  const salvarEdicao = async () => {
+  const salvarEdicao = async (moverCodigo = null) => {
     if (!editModal) return;
+    setConflitoBarras(null);
     const dados = { ...editForm, preco: Number(editForm.preco), estoque_minimo: Number(editForm.estoque_minimo) };
     const qtdNova = Math.max(0, Math.floor(Number(String(editForm.estoque_atual ?? "").replace(",", "."))));
     const qtdAntiga = Number(editModal.estoque_atual) || 0;
@@ -200,8 +202,17 @@ export default function Estoque() {
     if ("codigo_barras" in dados) {
       dados.codigo_barras = String(dados.codigo_barras || "").trim() || null;
       if (dados.codigo_barras) {
-        const { data: outro } = await supabase.from("produtos").select("nome").eq("codigo_barras", dados.codigo_barras).eq("ativo", true).neq("id", editModal.id).limit(1);
-        if (outro?.length) { setErroEdit(`Esse código de barras já está no produto "${outro[0].nome}".`); return; }
+        const { data: outro } = await supabase.from("produtos").select("id, nome, ativo").eq("codigo_barras", dados.codigo_barras).neq("id", editModal.id).limit(1);
+        if (outro?.length) {
+          if (moverCodigo && moverCodigo === outro[0].id) {
+            const { error: errMover } = await supabase.from("produtos").update({ codigo_barras: null }).eq("id", outro[0].id);
+            if (errMover) { setErroEdit("Não foi possível tirar o código do outro produto: " + errMover.message); return; }
+          } else if (outro[0].ativo) {
+            setConflitoBarras({ id: outro[0].id, nome: outro[0].nome }); return;
+          } else {
+            await supabase.from("produtos").update({ codigo_barras: null }).eq("id", outro[0].id); // produto desativado: libera o código
+          }
+        }
       }
     }
     setErroEdit("");
@@ -310,6 +321,7 @@ export default function Estoque() {
         <div style={base.modal}>
           <div style={base.modalBox}>
             <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 20 }}>✏️ Editar Produto</div>
+            {(erroEdit || conflitoBarras) && <div style={{ ...base.alert(C.red), marginBottom: 14 }}>⚠️ {erroEdit || "Não salvou: o código de barras já está em outro produto (veja embaixo do campo do código)."}</div>}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={base.label}>Nome</label>
@@ -366,6 +378,15 @@ export default function Estoque() {
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={base.label}>Código de Barras</label>
                   <input style={base.input} inputMode="numeric" placeholder="Bipe ou digite..." value={editForm.codigo_barras} onChange={e => setEditForm({ ...editForm, codigo_barras: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }} />
+                  {conflitoBarras && (
+                    <div style={{ ...base.alert(C.red), marginTop: 8, marginBottom: 0 }}>
+                      ⚠️ Esse código já está no produto <strong>"{conflitoBarras.nome}"</strong>.
+                      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                        <button style={base.btnSm(C.accent, "#000")} onClick={() => salvarEdicao(conflitoBarras.id)}>Passar o código pra este produto</button>
+                        <button style={base.btnSm(C.card, C.text)} onClick={() => { setConflitoBarras(null); setEditForm(f => ({ ...f, codigo_barras: editModal.codigo_barras ?? "" })); }}>Cancelar</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {"volume_ml" in editForm && editForm.controla_estoque !== false && (
@@ -407,10 +428,9 @@ export default function Estoque() {
               </div>
             )}
             <div style={base.row}>
-              <button style={base.btn(C.green, "#fff")} onClick={salvarEdicao}>Salvar</button>
+              <button style={base.btn(C.green, "#fff")} onClick={() => salvarEdicao()}>Salvar</button>
               <button style={base.btnOutline} onClick={() => setEditModal(null)}>Cancelar</button>
             </div>
-            {erroEdit && <div style={{ ...base.alert(C.red), marginTop: 12, marginBottom: 0 }}>⚠️ {erroEdit}</div>}
           </div>
         </div>
       )}
