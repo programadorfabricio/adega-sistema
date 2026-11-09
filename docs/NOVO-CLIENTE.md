@@ -58,6 +58,8 @@ Exemplo usado abaixo: cliente **Adega Premier**, schema **`premier`**.
 ## 3. Logo
 
 Salve como `public/logos/premier.png` no repositório (ou mande pro Claude colocar e subir).
+Pra virar ícone do app instalado, gere também `public/icons/premier-192.png`, `premier-512.png` e `premier-apple.png`
+(logo centralizada num quadrado, 80% do tamanho). Sem eles o app usa o ícone padrão FH.
 
 ## 4. Vercel (5 min)
 
