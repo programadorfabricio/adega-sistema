@@ -6,12 +6,11 @@ import { NOME_FORMA } from "./pagamento";
 const brl = (v) => "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-let lojaCache = null;
+// Busca na hora de imprimir (sem cache): se mudar o endereço em Configurações, o próximo cupom já sai certo.
+// select("*") pra não falhar numa adega que não tenha alguma das colunas.
 async function dadosLoja() {
-  if (lojaCache) return lojaCache;
-  const { data } = await supabase.from("configuracoes").select("nome_estabelecimento, telefone, endereco").limit(1);
-  lojaCache = data?.[0] || {};
-  return lojaCache;
+  const { data } = await supabase.from("configuracoes").select("*").limit(1);
+  return data?.[0] || {};
 }
 
 export function htmlCupom({ loja = {}, numero, itens, subtotal, desconto = 0, total, pagamentos = [], data = new Date() }) {

@@ -111,12 +111,15 @@ export default function Configuracoes({ usuario }) {
   };
 
   const salvarConfig = async () => {
+    let erro = null;
     if (configId) {
-      await supabase.from("configuracoes").update({ ...config, updated_at: new Date().toISOString() }).eq("id", configId);
+      ({ error: erro } = await supabase.from("configuracoes").update({ ...config, updated_at: new Date().toISOString() }).eq("id", configId));
     } else {
-      const { data } = await supabase.from("configuracoes").insert(config).select().single();
+      const { data, error } = await supabase.from("configuracoes").insert(config).select().single();
+      erro = error;
       if (data) setConfigId(data.id);
     }
+    if (erro) { alert("Não foi possível salvar os dados da loja: " + erro.message); return; }
     setSavedConfig(true);
     setTimeout(() => setSavedConfig(false), 2000);
   };
