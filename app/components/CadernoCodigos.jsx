@@ -15,7 +15,7 @@ function svgBarras(codigo) {
   return svg.outerHTML;
 }
 
-function imprimirFolha(itens) {
+export function imprimirFolha(itens) {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Caderno de códigos</title><style>
     @page { size: A4; margin: 10mm; }
     body { font-family: Arial, sans-serif; margin: 0; }

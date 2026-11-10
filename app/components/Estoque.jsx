@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import CadernoCodigos from "./CadernoCodigos";
+import CadernoCodigos, { imprimirFolha } from "./CadernoCodigos";
+import { codigoInterno } from "./shared/codigos.mjs";
 import { supabase, C, base, fmt, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
 import { temVolume, textoGarrafa, unidadeFracao } from "./shared/estoque";
 import { custoDoProduto, margem } from "./shared/custo";
@@ -89,6 +90,7 @@ export default function Estoque() {
   const [form, setForm] = useState({ nome: "", categoria: "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "", controla_estoque: true });
   const [showForm, setShowForm] = useState(false);
   const [showCaderno, setShowCaderno] = useState(false);
+  const [copiasEtiqueta, setCopiasEtiqueta] = useState(1);
   const [entradaModal, setEntradaModal] = useState(null);
   const [qtdEntrada, setQtdEntrada] = useState("");
   const [editModal, setEditModal] = useState(null);
@@ -383,6 +385,21 @@ export default function Estoque() {
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={base.label}>Código de Barras</label>
                   <input style={base.input} inputMode="numeric" placeholder="Bipe ou digite..." value={editForm.codigo_barras} onChange={e => setEditForm({ ...editForm, codigo_barras: e.target.value })} onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }} />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    {!String(editForm.codigo_barras || "").trim() ? (
+                      <button type="button" style={base.btnSm(C.card2, C.text)} onClick={() => setEditForm(f => ({ ...f, codigo_barras: codigoInterno() }))}>🏷️ Gerar código pra este produto</button>
+                    ) : (<>
+                      <button type="button" style={base.btnSm(C.card2, C.text)}
+                        onClick={() => imprimirFolha(Array.from({ length: Math.min(30, Math.max(1, Number(copiasEtiqueta) || 1)) }, () => ({ nome: editForm.nome, preco: editForm.preco, codigo_barras: String(editForm.codigo_barras).trim() })))}>
+                        🖨️ Imprimir etiqueta
+                      </button>
+                      <input type="number" min="1" max="30" value={copiasEtiqueta} onChange={e => setCopiasEtiqueta(e.target.value)} style={{ ...base.input, width: 64, padding: "6px 8px" }} title="Quantas etiquetas" />
+                      <span style={{ fontSize: 11, color: C.muted }}>cópias</span>
+                    </>)}
+                  </div>
+                  {String(editForm.codigo_barras || "").trim() !== String(editModal.codigo_barras || "").trim() && (
+                    <div style={{ fontSize: 11, color: C.accent, marginTop: 4 }}>Código novo: clique em Salvar pra ele valer no caixa.</div>
+                  )}
                   {conflitoBarras && (
                     <div style={{ ...base.alert(C.red), marginTop: 8, marginBottom: 0 }}>
                       ⚠️ Esse código já está no produto <strong>"{conflitoBarras.nome}"</strong>.
