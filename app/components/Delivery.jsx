@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, PEDIDO_ONLINE } from "./shared/constants";
+import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, PEDIDO_ONLINE, VENDER_SEM_ESTOQUE } from "./shared/constants";
 import PedidosOnline from "./delivery/PedidosOnline";
 import { movimentarEstoque } from "./shared/estoque";
 import { inserirItensVenda } from "./shared/custo";
@@ -182,7 +182,7 @@ export default function Delivery() {
 
   const add = (p) => {
     const noCarrinho = carrinho.find(i => i.produto_id === p.id);
-    if (!semEstoque(p)) {
+    if (!semEstoque(p) && !VENDER_SEM_ESTOQUE) {
       if (p.estoque_atual <= 0) return;
       if (noCarrinho && noCarrinho.quantidade >= p.estoque_atual) return;
     }
@@ -545,7 +545,7 @@ export default function Delivery() {
                   {filtrados.slice(0, 60).map(p => {
                     const livre = semEstoque(p);
                     const noCarrinho = carrinho.find(i => i.produto_id === p.id)?.quantidade || 0;
-                    const esgotado = !livre && p.estoque_atual - noCarrinho <= 0;
+                    const esgotado = !livre && p.estoque_atual - noCarrinho <= 0 && !VENDER_SEM_ESTOQUE;
                     return (
                       <button key={p.id} onClick={() => add(p)} disabled={esgotado}
                         style={{ display: "flex", justifyContent: "space-between", gap: 8, background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", cursor: esgotado ? "not-allowed" : "pointer", opacity: esgotado ? 0.45 : 1, textAlign: "left" }}>

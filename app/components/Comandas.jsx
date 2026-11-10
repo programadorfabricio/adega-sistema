@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, MOSTRAR_HORARIOS, dataHora } from "./shared/constants";
+import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, MOSTRAR_HORARIOS, dataHora, VENDER_SEM_ESTOQUE } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import EscolherFiado from "./shared/EscolherFiado";
 import { juntarComandaNoFiado } from "./shared/fiado";
@@ -430,7 +430,7 @@ export default function Comandas({ usuario }) {
     atualizandoManual.current = true;
 
     const { data: prodAtual } = await supabase.from("produtos").select("*").eq("id", produto.id).single();
-    if (!prodAtual || (!semEstoque(prodAtual) && prodAtual.estoque_atual <= 0)) { atualizandoManual.current = false; setAdicionando(false); return; }
+    if (!prodAtual || (!semEstoque(prodAtual) && !VENDER_SEM_ESTOQUE && prodAtual.estoque_atual <= 0)) { atualizandoManual.current = false; setAdicionando(false); return; }
 
     // Com horários ligados, cada lançamento vira uma linha própria (guarda a hora de cada pedido)
     const existente = MOSTRAR_HORARIOS ? null : itens.find(i => i.produto_id === produto.id);
@@ -883,7 +883,7 @@ export default function Comandas({ usuario }) {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     {itenscat.map(p => {
                       const livre = semEstoque(p);
-                      const esgotado = !livre && p.estoque_atual <= 0;
+                      const esgotado = !livre && p.estoque_atual <= 0 && !VENDER_SEM_ESTOQUE;
                       return (
                         <button key={p.id}
                           onClick={() => !esgotado && adicionarItem(p)}

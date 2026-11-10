@@ -44,6 +44,8 @@ export const PEDIDO_ONLINE = process.env.NEXT_PUBLIC_PEDIDO_ONLINE === "1";
 // NEXT_PUBLIC_LOGIN_LOJA=1         → pede a conta da loja (e-mail/senha) antes do PIN e confere o PIN no banco
 //                                    (obrigatório antes de trancar o banco da adega com supabase/trava.sql)
 export const LOGIN_LOJA = process.env.NEXT_PUBLIC_LOGIN_LOJA === "1";
+// Implantação: deixa vender mesmo com estoque 0 (o estoque não fica negativo). Desligar depois da contagem.
+export const VENDER_SEM_ESTOQUE = process.env.NEXT_PUBLIC_VENDER_SEM_ESTOQUE === "1";
 
 const ACCENT = process.env.NEXT_PUBLIC_COR_DESTAQUE || (TEMA === "claro" ? "#d97706" : "#f5c000");
 const hexToRgba = (hex, a) => {

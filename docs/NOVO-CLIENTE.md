@@ -80,6 +80,7 @@ Pra virar ícone do app instalado, gere também `public/icons/premier-192.png`, 
 | `NEXT_PUBLIC_EMOJI` | emoji no lugar da logo | opcional |
 | `NEXT_PUBLIC_OCULTAR_PAGINAS` | ex. `comandas,compras` | opcional |
 | `NEXT_PUBLIC_PEDIDO_ONLINE` | `1` = cardápio online `/pedir` (só se contratou) | opcional |
+| `NEXT_PUBLIC_VENDER_SEM_ESTOQUE` | `1` = deixa vender com estoque 0 (só na implantação, enquanto contam; apague depois) | opcional |
 
 Todas são do tipo **Config** (nenhuma é segredo). Depois clique **Deploy**.
 Mudou alguma variável depois? **Deployments → ⋯ → Redeploy**, senão não vale.

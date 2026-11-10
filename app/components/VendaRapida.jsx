@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase, C, base, fmt, SCHEMA, semEstoque, CARRINHO_LARGO } from "./shared/constants";
+import { useState, useEffect, useCallback, useRef, useMemo, useDeferredValue } from "react";
+import { VENDER_SEM_ESTOQUE, supabase, C, base, fmt, SCHEMA, semEstoque, CARRINHO_LARGO } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { useCaixaAberto } from "./Caixa";
@@ -60,6 +60,7 @@ export default function VendaRapida({ setPage }) {
   const [erroFiado, setErroFiado] = useState("");
   const [lancandoFiado, setLancandoFiado] = useState(false);
 
+  const rtTimer = useRef(null);
   const loadProdutos = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
     const unicos = (data || []).filter((p, idx, arr) => arr.findIndex(x => x.id === p.id) === idx);
@@ -70,19 +71,26 @@ export default function VendaRapida({ setPage }) {
   useEffect(() => {
     loadProdutos();
     const channel = supabase.channel("venda-rapida-rt")
-      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, loadProdutos)
+      // Uma venda mexe em vários produtos de uma vez: junta os avisos e recarrega uma vez só
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, () => {
+        clearTimeout(rtTimer.current);
+        rtTimer.current = setTimeout(loadProdutos, 1500);
+      })
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => { clearTimeout(rtTimer.current); supabase.removeChannel(channel); };
   }, [loadProdutos]);
 
+  const buscaAdiada = useDeferredValue(busca); // a lista grande não trava a digitação/leitor
   const termoBusca = busca.trim().toLowerCase();
-  const filtrados = produtos.filter(p => p.nome.toLowerCase().includes(termoBusca) || (termoBusca && String(p.codigo_barras || "") === termoBusca));
+  const termoLista = buscaAdiada.trim().toLowerCase();
+  const filtrados = useMemo(() => produtos.filter(p => p.nome.toLowerCase().includes(termoLista) || (termoLista && String(p.codigo_barras || "") === termoLista)), [produtos, termoLista]);
   // Leitor bipando com o cursor na busca: Enter adiciona o produto do código (ou o único resultado)
   const enterNaBusca = (e) => {
     if (e.key !== "Enter" || !termoBusca) return;
     e.preventDefault();
     const porCodigo = produtos.find(p => String(p.codigo_barras || "") === termoBusca);
-    const alvo = porCodigo || (filtrados.length === 1 ? filtrados[0] : null);
+    const porNome = produtos.filter(p => p.nome.toLowerCase().includes(termoBusca));
+    const alvo = porCodigo || (porNome.length === 1 ? porNome[0] : null);
     if (alvo) { add(alvo); setBusca(""); }
     else if (/^\d{6,}$/.test(termoBusca)) { setScanFeedback({ tipo: "erro", msg: `Código não encontrado: ${termoBusca}` }); setTimeout(() => setScanFeedback(null), 3000); setBusca(""); }
   };
@@ -98,7 +106,7 @@ export default function VendaRapida({ setPage }) {
 
   const add = (p) => {
     const noCarrinho = carrinho.find(i => i.produto_id === p.id);
-    if (!semEstoque(p)) {
+    if (!semEstoque(p) && !VENDER_SEM_ESTOQUE) {
       const avisar = (msg) => { setScanFeedback({ tipo: "erro", msg }); setTimeout(() => setScanFeedback(null), 4000); };
       if (p.estoque_atual <= 0) return avisar(`${p.nome} está com estoque 0. Lance a quantidade em Estoque → ✏️ Editar.`);
       if (noCarrinho && noCarrinho.quantidade >= p.estoque_atual) return avisar(`${p.nome}: só tem ${p.estoque_atual} no estoque.`);
@@ -240,7 +248,7 @@ export default function VendaRapida({ setPage }) {
                       const qtdCarrinho = noCarrinho ? noCarrinho.quantidade : 0;
                       const disponivelReal = p.estoque_atual - qtdCarrinho;
                       const livre = semEstoque(p);
-                      const esgotado = !livre && disponivelReal <= 0;
+                      const esgotado = !livre && disponivelReal <= 0 && !VENDER_SEM_ESTOQUE;
                       return (
                         <button key={p.id} onClick={() => add(p)} disabled={esgotado}
                           style={{ background: esgotado ? C.esgotado : C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px", cursor: esgotado ? "not-allowed" : "pointer", textAlign: "left", opacity: esgotado ? 0.5 : 1, position: "relative" }}>
