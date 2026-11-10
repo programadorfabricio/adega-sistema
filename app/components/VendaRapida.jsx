@@ -8,6 +8,8 @@ import { inserirItensVenda } from "./shared/custo";
 import { FORMAS_PAG, CampoDesconto, PagamentoDividido, calcDesconto, inserirVenda, linhasIniciais, linhasBatem, reajustarLinhas, num } from "./shared/pagamento";
 import { useRecarregar } from "./shared/recarregar.mjs";
 import { imprimirCupom } from "./shared/cupom";
+import EscolherFiado from "./shared/EscolherFiado";
+import { garantirFiado, lancarItensNoFiado } from "./shared/fiado";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
 function useBarcodeListener(onScan) {
@@ -54,6 +56,9 @@ export default function VendaRapida({ setPage }) {
   const [dividir, setDividir] = useState(false);
   const [linhas, setLinhas] = useState([]);
   const [perguntaImprimir, setPerguntaImprimir] = useState(null); // dados da venda recém-finalizada
+  const [modalFiado, setModalFiado] = useState(false);
+  const [erroFiado, setErroFiado] = useState("");
+  const [lancandoFiado, setLancandoFiado] = useState(false);
 
   const loadProdutos = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
@@ -129,6 +134,24 @@ export default function VendaRapida({ setPage }) {
     setCarrinho(c => c.map(i => i.produto_id === id ? { ...i, quantidade: qtd, subtotal: qtd * i.preco_unitario } : i));
   };
 
+  // Carrinho vai pro fiado (aba Fiado das Comandas). Não entra no caixa agora: entra quando o cliente pagar.
+  const lancarFiado = async (destino) => {
+    if (!carrinho.length) return;
+    setLancandoFiado(true); setErroFiado("");
+    try {
+      const id = await garantirFiado(destino);
+      await lancarItensNoFiado(id, carrinho);
+      await movimentarEstoque(carrinho, -1);
+      setScanFeedback({ tipo: "ok", msg: `Lançado no fiado${destino.nome ? " de " + destino.nome.trim() : ""}: ${fmt(subtotal)}. Veja em Comandas → Fiado.` });
+      setTimeout(() => setScanFeedback(null), 4000);
+      setCarrinho([]); setDescValor(""); setDividir(false); setModalFiado(false);
+    } catch (e) {
+      setErroFiado(e.message);
+    } finally {
+      setLancandoFiado(false);
+    }
+  };
+
   const finalizar = async () => {
     if (!carrinho.length || !pagamentoOk) return;
     setLoading(true);
@@ -161,6 +184,17 @@ export default function VendaRapida({ setPage }) {
         </div>
       )}
       {sucesso && <div style={{ ...base.alert(C.green), marginBottom: 16 }}>✅ Venda registrada!</div>}
+      {modalFiado && (
+        <EscolherFiado
+          titulo="Pendurar no fiado"
+          descricao={<>{carrinho.length} item(ns) · {fmt(subtotal)}{desconto > 0 ? " (o desconto não vale no fiado)" : ""}. O valor entra no caixa quando o cliente pagar.</>}
+          textoNovo="Cliente novo no fiado"
+          erro={erroFiado}
+          carregando={lancandoFiado}
+          onConfirmar={lancarFiado}
+          onCancelar={() => setModalFiado(false)}
+        />
+      )}
       {perguntaImprimir && (
         <div style={base.modal} onClick={() => setPerguntaImprimir(null)}>
           <div style={{ ...base.modalBox, maxWidth: 360, textAlign: "center" }} onClick={e => e.stopPropagation()}>
@@ -274,6 +308,9 @@ export default function VendaRapida({ setPage }) {
               </div>
               <button style={{ ...base.btn(pagamentoOk ? C.green : C.muted, "#fff"), width: "100%", padding: "13px", fontSize: 15, opacity: pagamentoOk ? 1 : 0.5 }} onClick={finalizar} disabled={loading || !pagamentoOk}>
                 {loading ? "Registrando..." : "✅ Finalizar Venda"}
+              </button>
+              <button style={{ ...base.btn(C.card2, C.text), width: "100%", padding: "11px", fontSize: 14, marginTop: 8 }} onClick={() => { setErroFiado(""); setModalFiado(true); }} disabled={loading || lancandoFiado}>
+                📒 Pendurar no fiado
               </button>
             </div>
           )}

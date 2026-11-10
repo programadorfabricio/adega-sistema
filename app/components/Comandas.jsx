@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, MOSTRAR_HORARIOS, dataHora } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
+import EscolherFiado from "./shared/EscolherFiado";
+import { juntarComandaNoFiado } from "./shared/fiado";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { inserirItensVenda } from "./shared/custo";
 import { CampoDesconto, calcDesconto, inserirVenda, reajustarLinhas, num } from "./shared/pagamento";
@@ -530,6 +532,24 @@ export default function Comandas({ usuario }) {
     }
   };
 
+  // Comanda aberta → fiado: vira um fiado novo ou entra no fiado de quem já deve
+  const transferirParaFiado = async (destino) => {
+    if (!selected) return;
+    if (destino.id) {
+      try { await juntarComandaNoFiado(selected.id, destino.id); }
+      catch (e) { setErroFiado(e.message); return; }
+      setModalPendurar(false); setErroFiado(""); setSelected(null); setItens([]);
+      setAba("fiado"); loadComandas();
+      return;
+    }
+    const nome = destino.nome.trim();
+    if (nome && nome !== selected.nome_cliente) {
+      await supabase.from("comandas").update({ nome_cliente: nome }).eq("id", selected.id);
+      setSelected(s => ({ ...s, nome_cliente: nome }));
+    }
+    return pendurar(destino.telefone);
+  };
+
   const pendurar = async (tel) => {
     if (!selected) return;
     const dados = { fiado: true, telefone: tel || null };
@@ -907,7 +927,20 @@ export default function Comandas({ usuario }) {
         />
       )}
 
-      {modalPendurar && selected && (
+      {modalPendurar && selected && !selected.fiado && (
+        <EscolherFiado
+          titulo="Passar pro fiado"
+          descricao={<>A comanda de <strong style={{ color: C.text }}>{selected.nome_cliente}</strong> ({fmt(totalComanda)}) sai das abertas e vai pra aba Fiado.</>}
+          textoNovo="Fiado novo com esta comanda"
+          nomeSugerido={selected.nome_cliente}
+          telefoneSugerido={selected.telefone || ""}
+          excluirId={selected.id}
+          erro={erroFiado}
+          onConfirmar={transferirParaFiado}
+          onCancelar={() => { setModalPendurar(false); setErroFiado(""); }}
+        />
+      )}
+      {modalPendurar && selected && selected.fiado && (
         <ModalPendurar
           selected={selected}
           erro={erroFiado}
