@@ -7,6 +7,7 @@ import { useCaixaAberto } from "./Caixa";
 import { inserirItensVenda } from "./shared/custo";
 import { FORMAS_PAG, CampoDesconto, PagamentoDividido, calcDesconto, inserirVenda, linhasIniciais, linhasBatem, reajustarLinhas, num } from "./shared/pagamento";
 import { useRecarregar } from "./shared/recarregar.mjs";
+import { imprimirCupom } from "./shared/cupom";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
 function useBarcodeListener(onScan) {
@@ -52,6 +53,7 @@ export default function VendaRapida({ setPage }) {
   const [descValor, setDescValor] = useState("");
   const [dividir, setDividir] = useState(false);
   const [linhas, setLinhas] = useState([]);
+  const [perguntaImprimir, setPerguntaImprimir] = useState(null); // dados da venda recém-finalizada
 
   const loadProdutos = useCallback(async () => {
     const { data } = await supabase.from("produtos").select("*").eq("ativo", true).order("categoria");
@@ -107,6 +109,7 @@ export default function VendaRapida({ setPage }) {
 
   // Scan automático por código de barras
   const handleScan = useCallback(async (codigo) => {
+    setPerguntaImprimir(null); // bipou o próximo produto: não imprime a venda anterior
     const { data: achados } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).limit(1);
     const data = achados?.[0];
     if (data) {
@@ -132,6 +135,7 @@ export default function VendaRapida({ setPage }) {
     const pagamentos = dividir ? linhas : [{ forma: pagamento, valor: total }];
     const { venda } = await inserirVenda({ total, desconto, pagamentos });
     if (venda) {
+      setPerguntaImprimir({ numero: venda.numero, itens: carrinho, subtotal, desconto, total, pagamentos, data: new Date() });
       await inserirItensVenda(venda.id, carrinho);
       await supabase.from("financeiro").insert({ tipo: "entrada", descricao: desconto > 0 ? `Venda Rápida (desconto ${fmt(desconto)})` : "Venda Rápida", valor: total, categoria: "venda" });
       await movimentarEstoque(carrinho, -1);
@@ -157,6 +161,19 @@ export default function VendaRapida({ setPage }) {
         </div>
       )}
       {sucesso && <div style={{ ...base.alert(C.green), marginBottom: 16 }}>✅ Venda registrada!</div>}
+      {perguntaImprimir && (
+        <div style={base.modal} onClick={() => setPerguntaImprimir(null)}>
+          <div style={{ ...base.modalBox, maxWidth: 360, textAlign: "center" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 34, marginBottom: 6 }}>🧾</div>
+            <div style={{ fontWeight: 800, fontSize: 18, color: C.text, marginBottom: 4 }}>Venda registrada!</div>
+            <div style={{ fontSize: 14, color: C.muted, marginBottom: 18 }}>Total {fmt(perguntaImprimir.total)} · Quer imprimir o comprovante?</div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button style={base.btn(C.green, "#fff")} onClick={() => { imprimirCupom(perguntaImprimir); setPerguntaImprimir(null); }}>🖨️ Imprimir</button>
+              <button style={base.btnOutline} onClick={() => setPerguntaImprimir(null)}>Não</button>
+            </div>
+          </div>
+        </div>
+      )}
       {scanFeedback && (
         <div style={{ ...base.alert(scanFeedback.tipo === "erro" ? C.red : C.green), marginBottom: 16 }}>
           {scanFeedback.tipo === "erro" ? "❌" : "✅"} {scanFeedback.msg}
