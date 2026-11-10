@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
+import CadernoCodigos from "./CadernoCodigos";
 import { supabase, C, base, fmt, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
 import { temVolume, textoGarrafa, unidadeFracao } from "./shared/estoque";
 import { custoDoProduto, margem } from "./shared/custo";
@@ -87,6 +88,7 @@ export default function Estoque() {
   const [categorias, setCategorias] = useState([]);
   const [form, setForm] = useState({ nome: "", categoria: "", preco: "", estoque_atual: "", estoque_minimo: "5", unidade: "un", codigo_barras: "", controla_estoque: true });
   const [showForm, setShowForm] = useState(false);
+  const [showCaderno, setShowCaderno] = useState(false);
   const [entradaModal, setEntradaModal] = useState(null);
   const [qtdEntrada, setQtdEntrada] = useState("");
   const [editModal, setEditModal] = useState(null);
@@ -246,9 +248,11 @@ export default function Estoque() {
         <div style={base.pageTitle}>Estoque</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={base.btn(C.blue, "#fff")} onClick={() => setShowScanner(true)}>📷 Bipar Produto</button>
+          <button style={base.btn(C.card2, C.text)} onClick={() => setShowCaderno(true)}>🏷️ Caderno de códigos</button>
           <button style={base.btn()} onClick={() => setShowForm(!showForm)}>+ Novo Produto</button>
         </div>
       </div>
+      {showCaderno && <CadernoCodigos produtos={produtos.filter(p => p.ativo !== false)} onFechar={() => setShowCaderno(false)} onAtualizou={load} />}
 
       {showScanner && (
         <BarcodeScanner
