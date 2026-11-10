@@ -68,7 +68,17 @@ export default function VendaRapida({ setPage }) {
     return () => supabase.removeChannel(channel);
   }, [loadProdutos]);
 
-  const filtrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
+  const termoBusca = busca.trim().toLowerCase();
+  const filtrados = produtos.filter(p => p.nome.toLowerCase().includes(termoBusca) || (termoBusca && String(p.codigo_barras || "") === termoBusca));
+  // Leitor bipando com o cursor na busca: Enter adiciona o produto do código (ou o único resultado)
+  const enterNaBusca = (e) => {
+    if (e.key !== "Enter" || !termoBusca) return;
+    e.preventDefault();
+    const porCodigo = produtos.find(p => String(p.codigo_barras || "") === termoBusca);
+    const alvo = porCodigo || (filtrados.length === 1 ? filtrados[0] : null);
+    if (alvo) { add(alvo); setBusca(""); }
+    else if (/^\d{6,}$/.test(termoBusca)) { setScanFeedback({ tipo: "erro", msg: `Código não encontrado: ${termoBusca}` }); setTimeout(() => setScanFeedback(null), 3000); setBusca(""); }
+  };
   const subtotal = carrinho.reduce((a, i) => a + i.subtotal, 0);
   const desconto = calcDesconto(subtotal, descTipo, descValor);
   const total = Math.round((subtotal - desconto) * 100) / 100;
@@ -82,8 +92,9 @@ export default function VendaRapida({ setPage }) {
   const add = (p) => {
     const noCarrinho = carrinho.find(i => i.produto_id === p.id);
     if (!semEstoque(p)) {
-      if (p.estoque_atual <= 0) return;
-      if (noCarrinho && noCarrinho.quantidade >= p.estoque_atual) return;
+      const avisar = (msg) => { setScanFeedback({ tipo: "erro", msg }); setTimeout(() => setScanFeedback(null), 4000); };
+      if (p.estoque_atual <= 0) return avisar(`${p.nome} está com estoque 0. Lance a quantidade em Estoque → ✏️ Editar.`);
+      if (noCarrinho && noCarrinho.quantidade >= p.estoque_atual) return avisar(`${p.nome}: só tem ${p.estoque_atual} no estoque.`);
     }
     setCarrinho(c => {
       const ex = c.find(i => i.produto_id === p.id);
@@ -96,14 +107,15 @@ export default function VendaRapida({ setPage }) {
 
   // Scan automático por código de barras
   const handleScan = useCallback(async (codigo) => {
-    const { data } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).single();
+    const { data: achados } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).limit(1);
+    const data = achados?.[0];
     if (data) {
       add(data);
     } else {
       setScanFeedback({ tipo: "erro", msg: `Código não encontrado: ${codigo}` });
       setTimeout(() => setScanFeedback(null), 2000);
     }
-  }, [produtos]);
+  }, [produtos, carrinho]);
 
   useBarcodeListener(handleScan);
 
@@ -155,7 +167,7 @@ export default function VendaRapida({ setPage }) {
         {/* Produtos */}
         <div>
           <div style={{ ...base.card, marginBottom: 12 }}>
-            <input style={base.input} placeholder="🔍 Buscar produto..." value={busca} onChange={e => setBusca(e.target.value)} />
+            <input style={base.input} placeholder="🔍 Buscar produto ou bipar código..." value={busca} onChange={e => setBusca(e.target.value)} onKeyDown={enterNaBusca} />
           </div>
 
           {ultimoAdicionado && (

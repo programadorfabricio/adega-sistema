@@ -18,7 +18,8 @@ function BarcodeScanner({ onFound, onClose }) {
 
   const buscarPorCodigo = async (codigo) => {
     if (!codigo) return;
-    const { data } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).single();
+    const { data: achados } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).limit(1);
+    const data = achados?.[0];
     if (data) {
       setResultado(data);
       setErro("");

@@ -333,7 +333,8 @@ export default function Comandas({ usuario }) {
 
   const handleScan = useCallback(async (codigo) => {
     if (!selected) return;
-    const { data } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).single();
+    const { data: achados } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).limit(1);
+    const data = achados?.[0];
     if (data) {
       await adicionarItem(data);
     } else {
