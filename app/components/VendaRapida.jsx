@@ -57,6 +57,7 @@ export default function VendaRapida({ setPage }) {
   const [linhas, setLinhas] = useState([]);
   const [perguntaImprimir, setPerguntaImprimir] = useState(null); // dados da venda recém-finalizada
   const [modalFiado, setModalFiado] = useState(false);
+  const [catAberta, setCatAberta] = useState({}); // categorias com "ver todos" aberto
   const [erroFiado, setErroFiado] = useState("");
   const [lancandoFiado, setLancandoFiado] = useState(false);
 
@@ -237,8 +238,11 @@ export default function VendaRapida({ setPage }) {
           )}
           <div style={{ ...base.card, maxHeight: 520, overflowY: "auto" }}>
             {[...new Set(filtrados.map(p => p.categoria))].map(cat => {
-              const itens = filtrados.filter(p => p.categoria === cat);
-              if (!itens.length) return null;
+              const todos = filtrados.filter(p => p.categoria === cat);
+              if (!todos.length) return null;
+              // Sem busca, mostra só os primeiros de cada categoria (a tela abre rápido até em PC simples)
+              const LIMITE = 24;
+              const itens = termoLista || catAberta[cat] ? todos : todos.slice(0, LIMITE);
               return (
                 <div key={cat} style={{ marginBottom: 16 }}>
                   <div style={base.sectionTitle}>📦 {cat}</div>
@@ -260,6 +264,11 @@ export default function VendaRapida({ setPage }) {
                       );
                     })}
                   </div>
+                  {itens.length < todos.length && (
+                    <button style={{ ...base.btnSm(C.card2, C.muted), width: "100%", marginTop: 8 }} onClick={() => setCatAberta(c => ({ ...c, [cat]: true }))}>
+                      Ver todos de {cat} ({todos.length})
+                    </button>
+                  )}
                 </div>
               );
             })}

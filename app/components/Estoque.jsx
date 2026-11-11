@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useDeferredValue, useMemo } from "react";
 import CadernoCodigos, { imprimirFolha } from "./CadernoCodigos";
 import { codigoInterno } from "./shared/codigos.mjs";
 import { supabase, C, base, fmt, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
@@ -141,6 +141,9 @@ export default function Estoque() {
   const [erroForm, setErroForm] = useState("");
   const [showScanner, setShowScanner] = useState(false);
   const [busca, setBusca] = useState("");
+  const [limite, setLimite] = useState(80); // linhas desenhadas; o resto aparece no "Mostrar mais"
+  const buscaAdiada = useDeferredValue(busca);
+  const rtTimer = useRef(null);
   const [filtroCat, setFiltroCat] = useState("todas");
   const [filtroStatus, setFiltroStatus] = useState("todos");
 
@@ -171,7 +174,7 @@ export default function Estoque() {
     load();
     loadCategorias();
     const channel = supabase.channel("estoque-rt")
-      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, load)
+      .on("postgres_changes", { event: "*", schema: SCHEMA, table: "produtos" }, () => { clearTimeout(rtTimer.current); rtTimer.current = setTimeout(load, 1500); })
       .on("postgres_changes", { event: "*", schema: SCHEMA, table: "categorias" }, loadCategorias)
       .subscribe();
     return () => supabase.removeChannel(channel);
@@ -193,15 +196,17 @@ export default function Estoque() {
   const baixos = controlados.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo);
 
   const semAcento = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const termo = semAcento(busca.trim());
-  const lista = produtos.filter(p => {
-    if (termo && !semAcento(p.nome).includes(termo) && !String(p.codigo_barras || "").includes(busca.trim())) return false;
+  const termo = semAcento(buscaAdiada.trim());
+  const listaToda = useMemo(() => produtos.filter(p => {
+    if (termo && !semAcento(p.nome).includes(termo) && !String(p.codigo_barras || "").includes(buscaAdiada.trim())) return false;
     if (filtroCat !== "todas" && p.categoria !== filtroCat) return false;
     if (filtroStatus === "esgotado") return !semEstoque(p) && p.estoque_atual === 0;
     if (filtroStatus === "baixo") return !semEstoque(p) && p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo;
     if (filtroStatus === "ok") return semEstoque(p) || p.estoque_atual > p.estoque_minimo;
     return true;
-  });
+  }), [produtos, termo, buscaAdiada, filtroCat, filtroStatus]);
+  useEffect(() => { setLimite(80); }, [termo, filtroCat, filtroStatus]);
+  const lista = listaToda.slice(0, limite);
 
   const salvar = async () => {
     if (!form.nome || !form.preco) return;
@@ -599,6 +604,13 @@ export default function Estoque() {
             {lista.length === 0 && <tr><td colSpan={7} style={{ ...base.td, color: C.muted, textAlign: "center" }}>{produtos.length ? "Nenhum produto encontrado" : "Nenhum produto cadastrado"}</td></tr>}
           </tbody>
         </table>
+        {listaToda.length > lista.length && (
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <button style={base.btn(C.card2, C.text)} onClick={() => setLimite(l => l + 200)}>
+              Mostrar mais ({listaToda.length - lista.length} restantes) · ou use a busca
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
