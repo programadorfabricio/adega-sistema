@@ -11,7 +11,7 @@ const semAcento = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, ""
 
 function svgBarras(codigo) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  JsBarcode(svg, codigo, { format: formatoBarras(codigo), width: 2, height: 56, fontSize: 14, margin: 4, displayValue: true });
+  JsBarcode(svg, codigo, { format: formatoBarras(codigo), width: 3, height: 100, fontSize: 20, margin: 10, displayValue: true });
   return svg.outerHTML;
 }
 
@@ -19,11 +19,12 @@ export function imprimirFolha(itens) {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Caderno de códigos</title><style>
     @page { size: A4; margin: 10mm; }
     body { font-family: Arial, sans-serif; margin: 0; }
-    .grade { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; }
-    .cel { border: 1px dashed #999; border-radius: 3mm; padding: 3mm; text-align: center; break-inside: avoid; }
-    .n { font-weight: bold; font-size: 12pt; margin-bottom: 1mm; }
-    .p { font-size: 11pt; margin-bottom: 1mm; }
-    svg { max-width: 100%; height: auto; }
+    /* 2 por linha, código grande: o leitor precisa de barras largas (mín. ~40 mm de largura) */
+    .grade { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8mm; }
+    .cel { border: 1px dashed #999; border-radius: 3mm; padding: 4mm; text-align: center; break-inside: avoid; }
+    .n { font-weight: bold; font-size: 15pt; margin-bottom: 1mm; }
+    .p { font-size: 13pt; margin-bottom: 2mm; }
+    svg { width: 80mm; max-width: 100%; height: auto; }
   </style></head><body><div class="grade">
     ${itens.map((p) => `<div class="cel"><div class="n">${esc(p.nome)}</div><div class="p">${esc(fmt(p.preco))}</div>${svgBarras(p.codigo_barras)}</div>`).join("")}
   </div></body></html>`;
