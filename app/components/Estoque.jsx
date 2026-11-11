@@ -8,11 +8,28 @@ import { custoDoProduto, margem } from "./shared/custo";
 import { useRecarregar } from "./shared/recarregar.mjs";
 
 // ─── LEITOR DE CÓDIGO DE BARRAS ──────────────────────────
-function BarcodeScanner({ onFound, onClose }) {
+function BarcodeScanner({ onFound, onClose, produtos = [], onVinculou }) {
   const [codigoManual, setCodigoManual] = useState("");
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState("");
+  const [naoAchado, setNaoAchado] = useState("");   // código bipado que não está em nenhum produto
+  const [buscaVinc, setBuscaVinc] = useState("");
+  const [ok, setOk] = useState("");
   const inputRef = useRef(null);
+  const semAcento = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const candidatos = buscaVinc.trim().length < 2 ? [] : produtos
+    .filter(p => p.ativo !== false && semAcento(p.nome).includes(semAcento(buscaVinc.trim())))
+    .sort((a, b) => (a.codigo_barras ? 1 : 0) - (b.codigo_barras ? 1 : 0)).slice(0, 12);
+
+  // Código novo → grava no produto escolhido e já fica pronto pra bipar o próximo
+  const vincular = async (p) => {
+    const { error } = await supabase.from("produtos").update({ codigo_barras: naoAchado }).eq("id", p.id);
+    if (error) { setErro("Não salvou: " + error.message); return; }
+    setOk(`✅ Código ${naoAchado} agora é de "${p.nome}". Pode bipar o próximo.`);
+    setNaoAchado(""); setBuscaVinc(""); setErro(""); setCodigoManual("");
+    onVinculou?.();
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
 
   useEffect(() => {
     if (inputRef.current) inputRef.current.focus();
@@ -22,12 +39,15 @@ function BarcodeScanner({ onFound, onClose }) {
     if (!codigo) return;
     const { data: achados } = await supabase.from("produtos").select("*").eq("codigo_barras", codigo).eq("ativo", true).limit(1);
     const data = achados?.[0];
+    setOk("");
     if (data) {
       setResultado(data);
-      setErro("");
+      setErro(""); setNaoAchado("");
     } else {
       setResultado(null);
-      setErro(`Produto não encontrado para o código: ${codigo}`);
+      setErro("");
+      setNaoAchado(codigo.trim());
+      setBuscaVinc("");
     }
   };
 
@@ -61,6 +81,25 @@ function BarcodeScanner({ onFound, onClose }) {
         </div>
 
         {erro && <div style={base.alert(C.red)}>{erro}</div>}
+        {ok && <div style={base.alert(C.green)}>{ok}</div>}
+
+        {naoAchado && (
+          <div style={{ background: C.card2, border: `1px solid ${C.accent}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: C.text, marginBottom: 8 }}>
+              O código <strong>{naoAchado}</strong> ainda não está em nenhum produto. <strong>De qual produto ele é?</strong>
+            </div>
+            <input style={{ ...base.input, marginBottom: 8 }} autoFocus value={buscaVinc} onChange={e => setBuscaVinc(e.target.value)} placeholder="Digite parte do nome (ex.: red label)" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+              {candidatos.map(p => (
+                <button key={p.id} style={{ ...base.btnSm(C.card, C.text), textAlign: "left", display: "flex", justifyContent: "space-between", gap: 8 }} onClick={() => vincular(p)}>
+                  <span>{p.nome}</span>
+                  <span style={{ fontSize: 11, color: p.codigo_barras ? C.muted : C.accent }}>{p.codigo_barras ? "troca o código" : "sem código"}</span>
+                </button>
+              ))}
+              {buscaVinc.trim().length >= 2 && candidatos.length === 0 && <div style={{ fontSize: 12, color: C.muted }}>Nenhum produto com esse nome. Cadastre em + Novo Produto.</div>}
+            </div>
+          </div>
+        )}
 
         {resultado && (
           <div style={{ background: `${C.green}15`, border: `1px solid ${C.green}40`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -260,7 +299,7 @@ export default function Estoque() {
         <BarcodeScanner
           onFound={(produto) => setEntradaModal(produto)}
           onClose={() => setShowScanner(false)}
-        />
+         produtos={produtos} onVinculou={load} />
       )}
 
       {esgotados.length > 0 && <div style={base.alert("#a855f7")}>🚫 <strong>{esgotados.length} esgotado(s):</strong> {resumoNomes(esgotados)}</div>}
