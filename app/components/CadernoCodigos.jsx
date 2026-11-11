@@ -15,9 +15,25 @@ function svgBarras(codigo) {
   return svg.outerHTML;
 }
 
-export function imprimirFolha(itens) {
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Caderno de códigos</title><style>
-    @page { size: A4; margin: 10mm; }
+// Impressora das etiquetas: "termica" (bobina de cupom 58/80 mm) ou "a4". Fica lembrado no aparelho.
+export function impressoraEtiqueta() {
+  try { return localStorage.getItem("impressoraEtiqueta") || "termica"; } catch { return "termica"; }
+}
+export function salvarImpressoraEtiqueta(v) { try { localStorage.setItem("impressoraEtiqueta", v); } catch {} }
+
+const CSS_TERMICA = `
+    @page { size: 80mm auto; margin: 0; }
+    body { font-family: Arial, sans-serif; margin: 0; width: 72mm; padding: 2mm 0; }
+    .grade { display: block; }
+    .cel { text-align: center; padding: 3mm 1mm 4mm; border-bottom: 1px dashed #000; break-inside: avoid; }
+    .n { font-weight: bold; font-size: 13pt; margin-bottom: 1mm; }
+    .p { font-size: 12pt; margin-bottom: 1mm; }
+    svg { width: 68mm; height: auto; }`;
+
+export function imprimirFolha(itens, tipo = impressoraEtiqueta()) {
+  const termica = tipo === "termica";
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Caderno de códigos</title><style>${termica ? CSS_TERMICA : ""}
+${termica ? "" : `    @page { size: A4; margin: 10mm; }
     body { font-family: Arial, sans-serif; margin: 0; }
     /* 2 por linha, código grande: o leitor precisa de barras largas (mín. ~40 mm de largura) */
     .grade { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8mm; }
@@ -25,6 +41,7 @@ export function imprimirFolha(itens) {
     .n { font-weight: bold; font-size: 15pt; margin-bottom: 1mm; }
     .p { font-size: 13pt; margin-bottom: 2mm; }
     svg { width: 80mm; max-width: 100%; height: auto; }
+  `}
   </style></head><body><div class="grade">
     ${itens.map((p) => `<div class="cel"><div class="n">${esc(p.nome)}</div><div class="p">${esc(fmt(p.preco))}</div>${svgBarras(p.codigo_barras)}</div>`).join("")}
   </div></body></html>`;
@@ -41,6 +58,7 @@ export default function CadernoCodigos({ produtos, onFechar, onAtualizou }) {
   const [marcados, setMarcados] = useState(() => new Set());
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState("");
+  const [impressora, setImpressora] = useState(impressoraEtiqueta);
 
   const lista = useMemo(() => {
     const t = semAcento(busca.trim());
@@ -68,7 +86,7 @@ export default function CadernoCodigos({ produtos, onFechar, onAtualizou }) {
         prontos.push({ ...p, codigo_barras: codigo });
       }
       if (semCodigo) onAtualizou?.();
-      imprimirFolha(prontos);
+      imprimirFolha(prontos, impressora);
     } catch (e) {
       setErro(e.message);
     } finally {
@@ -94,6 +112,12 @@ export default function CadernoCodigos({ produtos, onFechar, onAtualizou }) {
             </label>
           ))}
           {lista.length === 0 && <div style={{ color: C.muted, fontSize: 13, padding: 12 }}>Nenhum produto encontrado.</div>}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: C.muted }}>Impressora:</span>
+          {[["termica", "🧾 Pequena (cupom)"], ["a4", "📄 Folha A4"]].map(([v, t]) => (
+            <button key={v} style={base.btnSm(impressora === v ? C.accent : C.card2, impressora === v ? "#000" : C.text)} onClick={() => { setImpressora(v); salvarImpressoraEtiqueta(v); }}>{t}</button>
+          ))}
         </div>
         {erro && <div style={{ ...base.alert(C.red), marginBottom: 10 }}>{erro}</div>}
         <div style={base.row}>
