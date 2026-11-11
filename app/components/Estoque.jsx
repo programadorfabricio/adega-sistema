@@ -130,6 +130,8 @@ export default function Estoque() {
   const [showForm, setShowForm] = useState(false);
   const [showCaderno, setShowCaderno] = useState(false);
   const [copiasEtiqueta, setCopiasEtiqueta] = useState(1);
+  const [juntar, setJuntar] = useState(null);      // { busca, alvo } — juntar um repetido neste produto
+  const [msgJuntar, setMsgJuntar] = useState("");
   const [entradaModal, setEntradaModal] = useState(null);
   const [qtdEntrada, setQtdEntrada] = useState("");
   const [editModal, setEditModal] = useState(null);
@@ -230,11 +232,37 @@ export default function Estoque() {
   const abrirEdicao = async (p) => {
     setEditModal(p);
     setEditForm({ nome: p.nome, categoria: p.categoria, preco: p.preco, estoque_atual: p.estoque_atual ?? 0, estoque_minimo: p.estoque_minimo, unidade: p.unidade, controla_estoque: p.controla_estoque !== false, ...("volume_ml" in p ? { volume_ml: p.volume_ml ?? "" } : {}), ...("fracao_unidade" in p ? { fracao_unidade: unidadeFracao(p) } : {}), ...("preco_custo" in p ? { preco_custo: p.preco_custo ?? "" } : {}), ...("codigo_barras" in p ? { codigo_barras: p.codigo_barras ?? "" } : {}) });
-    setErroEdit(""); setConflitoBarras(null);
+    setErroEdit(""); setConflitoBarras(null); setJuntar(null); setMsgJuntar("");
     setReceita([]);
     const { data, error } = await supabase.from("produto_insumos").select("insumo_id, quantidade").eq("produto_id", p.id);
     setTemReceitas(!error);
     setReceita((data || []).map(r => ({ insumo_id: r.insumo_id, quantidade: r.quantidade })));
+  };
+
+  // Repetido → este produto fica, o outro some: soma o estoque, herda o código se este não tiver,
+  // receitas (combos/doses) que usavam o outro passam a usar este. Histórico de vendas fica como está.
+  const juntarRepetido = async (outro) => {
+    const este = editModal;
+    if (!este || !outro || este.id === outro.id) return;
+    const somaEstoque = (Number(este.estoque_atual) || 0) + (Number(outro.estoque_atual) || 0);
+    const codigoEste = String(editForm.codigo_barras || este.codigo_barras || "").trim();
+    const codigoOutro = String(outro.codigo_barras || "").trim();
+    // 1) tira o código do outro primeiro (pode ser único no banco)
+    const { error: e1 } = await supabase.from("produtos").update({ ativo: false, codigo_barras: null }).eq("id", outro.id);
+    if (e1) { setMsgJuntar("Não deu pra juntar: " + e1.message); return; }
+    const novos = { estoque_atual: somaEstoque };
+    if (!codigoEste && codigoOutro) novos.codigo_barras = codigoOutro;
+    const { error: e2 } = await supabase.from("produtos").update(novos).eq("id", este.id);
+    if (e2) { setMsgJuntar("Não deu pra juntar: " + e2.message); return; }
+    if ((Number(outro.estoque_atual) || 0) > 0)
+      await supabase.from("estoque_movimentacoes").insert({ produto_id: este.id, tipo: "entrada", quantidade: Number(outro.estoque_atual), motivo: `juntou repetido: ${outro.nome}` });
+    await supabase.from("produto_insumos").update({ insumo_id: este.id }).eq("insumo_id", outro.id);
+    setEditForm(f => ({ ...f, estoque_atual: somaEstoque, ...(novos.codigo_barras ? { codigo_barras: novos.codigo_barras } : {}) }));
+    setEditModal(m => ({ ...m, estoque_atual: somaEstoque, ...(novos.codigo_barras ? { codigo_barras: novos.codigo_barras } : {}) }));
+    setConflitoBarras(null); setErroEdit("");
+    setMsgJuntar(`✅ "${outro.nome}" foi juntado aqui${(Number(outro.estoque_atual) || 0) > 0 ? ` (+${outro.estoque_atual} no estoque)` : ""}${codigoOutro && !codigoEste ? " e o código dele veio junto" : codigoOutro && codigoEste && codigoOutro !== codigoEste ? `. O código dele (${codigoOutro}) foi descartado` : ""}.`);
+    setJuntar(null);
+    load();
   };
 
   const salvarEdicao = async (moverCodigo = null) => {
@@ -449,6 +477,7 @@ export default function Estoque() {
                       ⚠️ Esse código já está no produto <strong>"{conflitoBarras.nome}"</strong>.
                       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
                         <button style={base.btnSm(C.accent, "#000")} onClick={() => salvarEdicao(conflitoBarras.id)}>Passar o código pra este produto</button>
+                        <button style={base.btnSm(C.card2, C.text)} onClick={() => { const o = produtos.find(p => p.id === conflitoBarras.id); if (o) juntarRepetido(o); }}>É o mesmo produto: juntar os dois</button>
                         <button style={base.btnSm(C.card, C.text)} onClick={() => { setConflitoBarras(null); setEditForm(f => ({ ...f, codigo_barras: editModal.codigo_barras ?? "" })); }}>Cancelar</button>
                       </div>
                     </div>
@@ -493,6 +522,31 @@ export default function Estoque() {
                 <button style={base.btnSm(C.card, C.accent)} onClick={() => setReceita(rs => [...rs, { insumo_id: "", quantidade: "" }])}>+ Adicionar item</button>
               </div>
             )}
+            <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12, marginBottom: 14 }}>
+              {msgJuntar && <div style={{ ...base.alert(msgJuntar.startsWith("✅") ? C.green : C.red), marginBottom: 8 }}>{msgJuntar}</div>}
+              {!juntar ? (
+                <button style={base.btnSm(C.card2, C.text)} onClick={() => setJuntar({ busca: "" })}>🔀 Tem um repetido deste produto? Juntar aqui</button>
+              ) : (
+                <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+                    Escolha o repetido. <strong style={{ color: C.text }}>Este produto fica</strong>; o outro é desativado, o estoque dele soma aqui e o código dele vem junto se este não tiver.
+                  </div>
+                  <input style={{ ...base.input, marginBottom: 8 }} autoFocus value={juntar.busca} onChange={e => setJuntar({ busca: e.target.value })} placeholder="Nome do repetido (ex.: lucky azul)" />
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
+                    {juntar.busca.trim().length >= 2 && produtos
+                      .filter(p => p.id !== editModal.id && p.nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(juntar.busca.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")))
+                      .slice(0, 10).map(p => (
+                        <button key={p.id} style={{ ...base.btnSm(C.card, C.text), textAlign: "left", display: "flex", justifyContent: "space-between", gap: 8 }}
+                          onClick={() => { if (window.confirm(`Juntar "${p.nome}" em "${editModal.nome}"?\n\n"${p.nome}" vai ser desativado e o estoque dele (${p.estoque_atual ?? 0}) soma aqui.`)) juntarRepetido(p); }}>
+                          <span>{p.nome}</span>
+                          <span style={{ fontSize: 11, color: C.muted }}>estoque {p.estoque_atual ?? 0}{p.codigo_barras ? " · tem código" : ""}</span>
+                        </button>
+                      ))}
+                  </div>
+                  <button style={{ ...base.btnSm(C.card, C.muted), marginTop: 8 }} onClick={() => setJuntar(null)}>Cancelar</button>
+                </div>
+              )}
+            </div>
             <div style={base.row}>
               <button style={base.btn(C.green, "#fff")} onClick={() => salvarEdicao()}>Salvar</button>
               <button style={base.btnOutline} onClick={() => setEditModal(null)}>Cancelar</button>
