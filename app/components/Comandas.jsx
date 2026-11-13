@@ -6,7 +6,7 @@ import EscolherFiado from "./shared/EscolherFiado";
 import { juntarComandaNoFiado } from "./shared/fiado";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { inserirItensVenda } from "./shared/custo";
-import { CampoDesconto, calcDesconto, inserirVenda, reajustarLinhas, num } from "./shared/pagamento";
+import { CampoDesconto, calcDesconto, inserirVenda, reajustarLinhas, num, BotoesPagamento } from "./shared/pagamento";
 import { conferirPin, mensagemPin } from "./shared/pin";
 import { useRecarregar } from "./shared/recarregar.mjs";
 
@@ -167,12 +167,7 @@ function ModalFecharConta({ selected, totalComanda: subtotalComanda, pagamento, 
                     </div>
                     <div>
                       <label style={base.label}>Pagamento</label>
-                      <select style={base.select} value={p.forma} onChange={e => updatePessoa(i, "forma", e.target.value)}>
-                        <option value="pix">PIX</option>
-                        <option value="dinheiro">Dinheiro</option>
-                        <option value="cartao_debito">Débito</option>
-                        <option value="cartao_credito">Crédito</option>
-                      </select>
+                      <BotoesPagamento compacto value={p.forma} onChange={v => updatePessoa(i, "forma", v)} />
                     </div>
                     <div>
                       <label style={base.label}>Valor (R$)</label>

@@ -94,10 +94,8 @@ export function PagamentoDividido({ total, linhas, setLinhas }) {
   return (
     <div>
       {linhas.map((l, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 110px auto", gap: 6, marginBottom: 8, alignItems: "center" }}>
-          <select style={base.select} value={l.forma} onChange={e => atualizar(i, "forma", e.target.value)}>
-            {FORMAS_PAG.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </select>
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 90px auto", gap: 6, marginBottom: 8, alignItems: "center" }}>
+          <BotoesPagamento compacto value={l.forma} onChange={v => atualizar(i, "forma", v)} />
           <input style={base.input} type="number" inputMode="decimal" placeholder="R$" value={l.valor} onChange={e => atualizar(i, "valor", e.target.value)} />
           {linhas.length > 2
             ? <button type="button" onClick={() => setLinhas(ls => ls.filter((_, idx) => idx !== i))} style={{ ...base.btnSm(C.card2, C.muted), border: `1px solid ${C.border}` }}>✕</button>
@@ -129,3 +127,23 @@ export const reajustarLinhas = (total, ls) => {
   return ls[ls.length - 1].valor === ultima ? ls : [...ls.slice(0, -1), { ...ls[ls.length - 1], valor: ultima }];
 };
 export const linhasBatem = (total, linhas) => Math.abs(total - linhas.reduce((a, l) => a + num(l.valor), 0)) < 0.01;
+
+
+// Forma de pagamento em botões grandes (um toque, sem abrir lista)
+const ICONE_FORMA = { pix: "⚡", dinheiro: "💵", cartao_debito: "💳", cartao_credito: "💳" };
+export function BotoesPagamento({ value, onChange, compacto = false }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: compacto ? "repeat(4, 1fr)" : "1fr 1fr", gap: compacto ? 4 : 8 }}>
+      {FORMAS_PAG.map(f => {
+        const sel = value === f.value;
+        return (
+          <button key={f.value} type="button" onClick={() => onChange(f.value)} aria-pressed={sel}
+            style={{ padding: compacto ? "8px 2px" : "14px 8px", borderRadius: 10, fontSize: compacto ? 12 : 15, fontWeight: 800, cursor: "pointer",
+              border: `2px solid ${sel ? f.cor : C.border}`, background: sel ? f.cor : C.card2, color: sel ? "#fff" : C.text }}>
+            {compacto ? f.label : `${ICONE_FORMA[f.value] || ""} ${f.value.startsWith("cartao") ? `Cartão ${f.label}` : f.label}`}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

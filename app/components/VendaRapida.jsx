@@ -5,7 +5,7 @@ import { movimentarEstoque } from "./shared/estoque";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { useCaixaAberto } from "./Caixa";
 import { inserirItensVenda } from "./shared/custo";
-import { FORMAS_PAG, CampoDesconto, PagamentoDividido, calcDesconto, inserirVenda, linhasIniciais, linhasBatem, reajustarLinhas, num } from "./shared/pagamento";
+import { FORMAS_PAG, BotoesPagamento, CampoDesconto, PagamentoDividido, calcDesconto, inserirVenda, linhasIniciais, linhasBatem, reajustarLinhas, num } from "./shared/pagamento";
 import { useRecarregar } from "./shared/recarregar.mjs";
 import { imprimirCupom } from "./shared/cupom";
 import EscolherFiado from "./shared/EscolherFiado";
@@ -307,19 +307,7 @@ export default function VendaRapida({ setPage }) {
                 {dividir
                   ? <PagamentoDividido total={total} linhas={linhas} setLinhas={setLinhas} />
                   : (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      {FORMAS_PAG.map(f => {
-                        const sel = pagamento === f.value;
-                        const icone = { pix: "⚡", dinheiro: "💵", cartao_debito: "💳", cartao_credito: "💳" }[f.value] || "";
-                        return (
-                          <button key={f.value} type="button" onClick={() => setPagamento(f.value)} aria-pressed={sel}
-                            style={{ padding: "14px 8px", borderRadius: 10, fontSize: 15, fontWeight: 800, cursor: "pointer",
-                              border: `2px solid ${sel ? f.cor : C.border}`, background: sel ? f.cor : C.card2, color: sel ? "#fff" : C.text }}>
-                            {icone} {f.value.startsWith("cartao") ? `Cartão ${f.label}` : f.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <BotoesPagamento value={pagamento} onChange={setPagamento} />
                   )}
               </div>
               {!dividir && pagamento === "dinheiro" && <div style={{ marginBottom: 12 }}><TrocoCalculator total={total} /></div>}

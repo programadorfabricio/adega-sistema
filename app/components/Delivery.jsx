@@ -1,4 +1,5 @@
 "use client";
+import { BotoesPagamento } from "./shared/pagamento";
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, PEDIDO_ONLINE, VENDER_SEM_ESTOQUE } from "./shared/constants";
 import PedidosOnline from "./delivery/PedidosOnline";
@@ -520,9 +521,7 @@ export default function Delivery() {
                 </div>
                 <div>
                   <label style={base.label}>Pagamento na entrega</label>
-                  <select style={base.select} value={form.forma_pagamento} onChange={e => setForm({ ...form, forma_pagamento: e.target.value })}>
-                    {Object.entries(PAGAMENTOS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                  </select>
+                  <BotoesPagamento value={form.forma_pagamento} onChange={v => setForm({ ...form, forma_pagamento: v })} />
                 </div>
                 {form.forma_pagamento === "dinheiro" && (
                   <div>
@@ -589,9 +588,7 @@ export default function Delivery() {
             <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 6 }}>✅ Pedido #{confirmar.numero} entregue</div>
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>{confirmar.cliente_nome} · {fmt(confirmar.total)}</div>
             <label style={base.label}>Como o cliente pagou?</label>
-            <select style={{ ...base.select, marginBottom: 16 }} value={pagamentoFinal} onChange={e => setPagamentoFinal(e.target.value)}>
-              {Object.entries(PAGAMENTOS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
+            <div style={{ marginBottom: 16 }}><BotoesPagamento value={pagamentoFinal} onChange={setPagamentoFinal} /></div>
             {recursosGas && qtdVasilhame(confirmar.itens) > 0 && (
               <div style={{ marginBottom: 16 }}>
                 <label style={base.label}>Quantos vazios ficaram com o cliente?</label>
