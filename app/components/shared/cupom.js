@@ -59,3 +59,18 @@ export async function imprimirCupom(venda) {
     setTimeout(() => frame.remove(), 1000);
   }, 250);
 }
+
+// Imprime um texto simples (ex.: fechamento de caixa) na impressora de cupom 80 mm.
+export function imprimirTexto(titulo, texto) {
+  const limpo = String(texto).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").replace(/^ +/gm, (m) => " ".repeat(m.length));
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(titulo)}</title><style>
+    @page { margin: 0; }
+    body { font-family: 'Courier New', monospace; font-size: 12px; width: 72mm; padding: 4mm 3mm; margin: 0; color: #000; white-space: pre-wrap; line-height: 1.35; }
+  </style></head><body>${esc(limpo)}\n\n.</body></html>`;
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+  document.body.appendChild(frame);
+  const doc = frame.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  setTimeout(() => { frame.contentWindow.focus(); frame.contentWindow.print(); setTimeout(() => frame.remove(), 1000); }, 250);
+}

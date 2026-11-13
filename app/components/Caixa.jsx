@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { imprimirTexto } from "./shared/cupom";
 import { supabase, C, base, fmt, hora, dataHora, SCHEMA, MARCA } from "./shared/constants";
 import { partesDaVenda } from "./shared/pagamento";
 import { useRecarregar } from "./shared/recarregar.mjs";
@@ -188,6 +189,7 @@ export default function Caixa({ usuario }) {
             Esperado na gaveta {fmt(resultado.r.esperado)} · Contado {fmt(resultado.contado)} · Vendas {fmt(resultado.r.totalVendas)}
           </div>
           <div style={base.row}>
+            <button style={base.btnSm(C.green, "#fff")} onClick={() => imprimirTexto("Fechamento de caixa", textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca))}>🖨️ Imprimir</button>
             <button style={base.btnSm()} onClick={() => copiar(textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca))}>📋 Copiar resumo</button>
             <button style={base.btnSm(C.card2, C.muted)} onClick={() => setResultado(null)}>Fechar</button>
           </div>
@@ -332,6 +334,7 @@ export default function Caixa({ usuario }) {
               <div style={{ fontSize: 22, fontWeight: 900, color: corDif(detalhe.diferenca), margin: "12px 0" }}>{textoDif(detalhe.diferenca)}</div>
               {detalhe.observacao && <div style={{ fontSize: 13, color: C.text, marginBottom: 12 }}>📝 {detalhe.observacao}</div>}
               <div style={base.row}>
+                <button style={base.btnSm(C.green, "#fff")} onClick={() => imprimirTexto("Fechamento de caixa", textoResumo(detalhe, rh, Number(detalhe.contado_dinheiro), Number(detalhe.diferenca)))}>🖨️ Imprimir</button>
                 <button style={base.btnSm()} onClick={() => copiar(textoResumo(detalhe, rh, Number(detalhe.contado_dinheiro), Number(detalhe.diferenca)))}>📋 Copiar resumo</button>
                 <button style={base.btnSm(C.card2, C.muted)} onClick={() => setDetalhe(null)}>Fechar</button>
               </div>
