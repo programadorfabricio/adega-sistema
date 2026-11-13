@@ -322,6 +322,7 @@ export default function Comandas({ usuario }) {
   const [pinDigitado, setPinDigitado] = useState("");
   const [pinErro, setPinErro] = useState("");
   const [aba, setAba] = useState("mesas");            // mesas | fiado
+  const [buscaComanda, setBuscaComanda] = useState("");
   const [fiadoNova, setFiadoNova] = useState(false);
   const [telefone, setTelefone] = useState("");
   const [modalReceber, setModalReceber] = useState(false);
@@ -619,7 +620,13 @@ export default function Comandas({ usuario }) {
   const totalComanda = itens.reduce((a, i) => a + Number(i.subtotal), 0);
   const mesas = comandas.filter(c => !c.fiado);
   const fiados = comandas.filter(c => c.fiado);
-  const lista = aba === "fiado" ? fiados : mesas;
+  const semAcentoC = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const termoComanda = semAcentoC(buscaComanda.trim());
+  const soDigitos = buscaComanda.replace(/\D/g, "");
+  const lista = (aba === "fiado" ? fiados : mesas).filter(c => !termoComanda
+    || semAcentoC(c.nome_cliente).includes(termoComanda)
+    || (c.mesa != null && String(c.mesa) === buscaComanda.trim())
+    || (soDigitos.length >= 3 && String(c.telefone || "").replace(/\D/g, "").includes(soDigitos)));
   const totalFiado = fiados.reduce((a, c) => a + saldoDe(c), 0);
   const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
 
@@ -657,6 +664,8 @@ export default function Comandas({ usuario }) {
               }}>{t.label}</button>
             ))}
           </div>
+          <input style={{ ...base.input, marginBottom: 10 }} value={buscaComanda} onChange={e => setBuscaComanda(e.target.value)}
+            placeholder={aba === "fiado" ? "🔍 Procurar no fiado (nome ou telefone)" : "🔍 Procurar comanda (nome ou mesa)"} />
           {aba === "fiado" && fiados.length > 0 && (
             <div style={{ ...base.card, marginBottom: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 12, color: C.muted }}>Total a receber</span>
@@ -691,7 +700,7 @@ export default function Comandas({ usuario }) {
                 </div>
               </div>
             ))}
-            {lista.length === 0 && <div style={{ ...base.card, textAlign: "center", color: C.muted, fontSize: 13, padding: 32 }}>{aba === "fiado" ? "Ninguém pendurado 🙌" : "Nenhuma comanda aberta"}</div>}
+            {lista.length === 0 && <div style={{ ...base.card, textAlign: "center", color: C.muted, fontSize: 13, padding: 32 }}>{termoComanda ? `Nada encontrado para "${buscaComanda.trim()}"` : aba === "fiado" ? "Ninguém pendurado 🙌" : "Nenhuma comanda aberta"}</div>}
           </div>
         </div>
 
