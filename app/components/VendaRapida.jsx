@@ -307,9 +307,19 @@ export default function VendaRapida({ setPage }) {
                 {dividir
                   ? <PagamentoDividido total={total} linhas={linhas} setLinhas={setLinhas} />
                   : (
-                    <select style={base.select} value={pagamento} onChange={e => setPagamento(e.target.value)}>
-                      {FORMAS_PAG.map(f => <option key={f.value} value={f.value}>{f.value.startsWith("cartao") ? `Cartão ${f.label}` : f.label}</option>)}
-                    </select>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      {FORMAS_PAG.map(f => {
+                        const sel = pagamento === f.value;
+                        const icone = { pix: "⚡", dinheiro: "💵", cartao_debito: "💳", cartao_credito: "💳" }[f.value] || "";
+                        return (
+                          <button key={f.value} type="button" onClick={() => setPagamento(f.value)} aria-pressed={sel}
+                            style={{ padding: "14px 8px", borderRadius: 10, fontSize: 15, fontWeight: 800, cursor: "pointer",
+                              border: `2px solid ${sel ? f.cor : C.border}`, background: sel ? f.cor : C.card2, color: sel ? "#fff" : C.text }}>
+                            {icone} {f.value.startsWith("cartao") ? `Cartão ${f.label}` : f.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
               </div>
               {!dividir && pagamento === "dinheiro" && <div style={{ marginBottom: 12 }}><TrocoCalculator total={total} /></div>}
