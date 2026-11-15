@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { supabase, C, base, fmt, today, dataHora, SCHEMA } from "./shared/constants";
-import { partesDaVenda, rotuloPagamento } from "./shared/pagamento";
+import { partesDaVenda, rotuloPagamento, BotoesPagamento } from "./shared/pagamento";
 import { useRecarregar } from "./shared/recarregar.mjs";
 
 export default function Historico() {
@@ -16,6 +16,21 @@ export default function Historico() {
   const [comandasFechadas, setComandasFechadas] = useState([]);
   const [selectedComanda, setSelectedComanda] = useState(null);
   const [itensComanda, setItensComanda] = useState([]);
+  const [trocandoPag, setTrocandoPag] = useState(null); // id da venda com o "alterar pagamento" aberto
+  const [msgPag, setMsgPag] = useState("");
+
+  // Corrige a forma de pagamento de uma venda já feita (ex.: lançou dinheiro e era cartão)
+  const alterarPagamento = async (v, forma) => {
+    const { error } = await supabase.from("vendas").update({ forma_pagamento: forma, pagamentos: null }).eq("id", v.id);
+    if (error) { setMsgPag("Não foi possível alterar: " + error.message); return; }
+    const { data: cx } = await supabase.from("caixas").select("id").eq("status", "fechado")
+      .lte("aberto_em", v.created_at).gte("fechado_em", v.created_at).limit(1);
+    setVendas(vs => vs.map(x => x.id === v.id ? { ...x, forma_pagamento: forma, pagamentos: null } : x));
+    setTrocandoPag(null);
+    setMsgPag(cx?.length
+      ? "✅ Pagamento alterado. Atenção: o caixa desse dia já foi fechado, então o fechamento impresso não muda."
+      : "✅ Pagamento alterado. O caixa aberto já mostra a forma certa.");
+  };
 
   const loadVendas = useCallback(async () => {
     const { data } = await supabase.from("vendas").select("*").eq("status", "concluida").order("created_at", { ascending: false }).limit(50);
@@ -138,6 +153,20 @@ export default function Historico() {
                             <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8, marginTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 16 }}>
                               <span style={{ color: C.text }}>Total{Number(v.desconto) > 0 ? ` (desconto ${fmt(v.desconto)})` : ""}</span>
                               <span style={{ color: C.accent }}>{fmt(v.total)}</span>
+                            </div>
+                            <div style={{ marginTop: 12 }}>
+                              {msgPag && selected?.id === v.id && <div style={{ ...base.alert(msgPag.startsWith("✅") ? C.green : C.red), marginBottom: 8, fontSize: 12 }}>{msgPag}</div>}
+                              {trocandoPag === v.id ? (
+                                <div>
+                                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>
+                                    Qual foi a forma de pagamento certa?{partesDaVenda(v).length > 1 ? " (a venda inteira vai pra forma escolhida)" : ""}
+                                  </div>
+                                  <BotoesPagamento value={partesDaVenda(v).length > 1 ? "" : v.forma_pagamento} onChange={f => alterarPagamento(v, f)} />
+                                  <button style={{ ...base.btnSm(C.card, C.muted), marginTop: 8 }} onClick={() => setTrocandoPag(null)}>Cancelar</button>
+                                </div>
+                              ) : (
+                                <button style={base.btnSm(C.card, C.text)} onClick={() => { setMsgPag(""); setTrocandoPag(v.id); }}>✏️ Alterar forma de pagamento</button>
+                              )}
                             </div>
                           </div>
                         </td>
