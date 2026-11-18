@@ -22,7 +22,7 @@ export function impressoraEtiqueta() {
 export function salvarImpressoraEtiqueta(v) { try { localStorage.setItem("impressoraEtiqueta", v); } catch {} }
 
 const CSS_TERMICA = `
-    @page { size: 80mm auto; margin: 0; }
+    @page { margin: 0; }
     body { font-family: Arial, sans-serif; margin: 0; width: 72mm; padding: 2mm 0; }
     .grade { display: block; }
     .cel { text-align: center; padding: 3mm 1mm 4mm; border-bottom: 1px dashed #000; break-inside: avoid; }
