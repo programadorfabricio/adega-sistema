@@ -9,6 +9,7 @@ import { FORMAS_PAG, BotoesPagamento, CampoDesconto, PagamentoDividido, calcDesc
 import { useRecarregar } from "./shared/recarregar.mjs";
 import { imprimirCupom } from "./shared/cupom";
 import EscolherFiado from "./shared/EscolherFiado";
+import EscolherDose, { ehSeletorDose, opcoesDose } from "./shared/EscolherDose";
 import { garantirFiado, lancarItensNoFiado } from "./shared/fiado";
 
 // ─── HOOK LEITOR AUTOMÁTICO ───────────────────────────────
@@ -57,6 +58,7 @@ export default function VendaRapida({ setPage }) {
   const [linhas, setLinhas] = useState([]);
   const [perguntaImprimir, setPerguntaImprimir] = useState(null); // dados da venda recém-finalizada
   const [modalFiado, setModalFiado] = useState(false);
+  const [escolhaDose, setEscolhaDose] = useState(null); // { seletor, opcoes }
   const [catAberta, setCatAberta] = useState({}); // categorias com "ver todos" aberto
   const [erroFiado, setErroFiado] = useState("");
   const [lancandoFiado, setLancandoFiado] = useState(false);
@@ -106,6 +108,10 @@ export default function VendaRapida({ setPage }) {
   const [ultimoAdicionado, setUltimoAdicionado] = useState(null);
 
   const add = (p) => {
+    if (ehSeletorDose(p)) {
+      const opcoes = opcoesDose(p, produtos);
+      if (opcoes.length) { setEscolhaDose({ seletor: p, opcoes }); return; }
+    }
     const noCarrinho = carrinho.find(i => i.produto_id === p.id);
     if (!semEstoque(p) && !VENDER_SEM_ESTOQUE) {
       const avisar = (msg) => { setScanFeedback({ tipo: "erro", msg }); setTimeout(() => setScanFeedback(null), 4000); };
@@ -193,6 +199,10 @@ export default function VendaRapida({ setPage }) {
         </div>
       )}
       {sucesso && <div style={{ ...base.alert(C.green), marginBottom: 16 }}>✅ Venda registrada!</div>}
+      {escolhaDose && (
+        <EscolherDose seletor={escolhaDose.seletor} opcoes={escolhaDose.opcoes}
+          onEscolher={o => { setEscolhaDose(null); add(o); }} onCancelar={() => setEscolhaDose(null)} />
+      )}
       {modalFiado && (
         <EscolherFiado
           titulo="Pendurar no fiado"

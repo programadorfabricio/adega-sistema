@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, C, base, fmt, hora, SCHEMA, MARCA, semEstoque, MOSTRAR_HORARIOS, dataHora, VENDER_SEM_ESTOQUE } from "./shared/constants";
 import { movimentarEstoque } from "./shared/estoque";
 import EscolherFiado from "./shared/EscolherFiado";
+import EscolherDose, { ehSeletorDose, opcoesDose } from "./shared/EscolherDose";
 import { juntarComandaNoFiado } from "./shared/fiado";
 import TrocoCalculator from "./shared/TrocoCalculator";
 import { inserirItensVenda } from "./shared/custo";
@@ -310,6 +311,7 @@ const quandoLancou = (d) => new Date(d).toDateString() === new Date().toDateStri
 export default function Comandas({ usuario }) {
   const [comandas, setComandas] = useState([]);
   const [produtos, setProdutos] = useState([]);
+  const [escolhaDose, setEscolhaDose] = useState(null);
   const [selected, setSelected] = useState(null);
   const [itens, setItens] = useState([]);
   // Ordem em que foram lançados (mais antigo primeiro) quando os horários estão ligados
@@ -339,7 +341,7 @@ export default function Comandas({ usuario }) {
       setScanFeedback({ tipo: "erro", msg: `Código não encontrado: ${codigo}` });
       setTimeout(() => setScanFeedback(null), 2000);
     }
-  }, [selected]);
+  }, [selected, produtos, itens]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useBarcodeListener(handleScan, !!selected);
   const [nomeCliente, setNomeCliente] = useState("");
@@ -422,6 +424,10 @@ export default function Comandas({ usuario }) {
 
   const adicionarItem = async (produto) => {
     if (!selected || adicionando) return;
+    if (ehSeletorDose(produto)) {
+      const opcoes = opcoesDose(produto, produtos);
+      if (opcoes.length) { setEscolhaDose({ seletor: produto, opcoes }); return; }
+    }
     setAdicionando(true);
     atualizandoManual.current = true;
 
@@ -931,6 +937,10 @@ export default function Comandas({ usuario }) {
         />
       )}
 
+      {escolhaDose && (
+        <EscolherDose seletor={escolhaDose.seletor} opcoes={escolhaDose.opcoes}
+          onEscolher={o => { setEscolhaDose(null); adicionarItem(o); }} onCancelar={() => setEscolhaDose(null)} />
+      )}
       {modalPendurar && selected && !selected.fiado && (
         <EscolherFiado
           titulo="Passar pro fiado"
