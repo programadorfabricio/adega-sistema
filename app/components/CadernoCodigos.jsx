@@ -5,14 +5,16 @@ import { useMemo, useState } from "react";
 import JsBarcode from "jsbarcode";
 import { supabase, C, base, fmt } from "./shared/constants";
 import { codigoInterno, formatoBarras } from "./shared/codigos.mjs";
+import { imprimirHtml, abrirHtmlEmAba } from "./shared/imprimir";
 
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const semAcento = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-function svgBarras(codigo) {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  JsBarcode(svg, codigo, { format: formatoBarras(codigo), width: 3, height: 100, fontSize: 20, margin: 10, displayValue: true });
-  return svg.outerHTML;
+// Código como imagem PNG (mais leve pra prévia de impressão do que SVG)
+function imgBarras(codigo) {
+  const canvas = document.createElement("canvas");
+  JsBarcode(canvas, codigo, { format: formatoBarras(codigo), width: 3, height: 100, fontSize: 20, margin: 10, displayValue: true });
+  return `<img src="${canvas.toDataURL("image/png")}" alt="${esc(codigo)}">`;
 }
 
 // Impressora das etiquetas: "termica" (bobina de cupom 58/80 mm) ou "a4". Fica lembrado no aparelho.
@@ -28,9 +30,9 @@ const CSS_TERMICA = `
     .cel { text-align: center; padding: 3mm 1mm 4mm; border-bottom: 1px dashed #000; break-inside: avoid; }
     .n { font-weight: bold; font-size: 13pt; margin-bottom: 1mm; }
     .p { font-size: 12pt; margin-bottom: 1mm; }
-    svg { width: 68mm; height: auto; }`;
+    img { width: 68mm; height: auto; display: block; margin: 0 auto; }`;
 
-export function imprimirFolha(itens, tipo = impressoraEtiqueta()) {
+export function htmlFolha(itens, tipo = impressoraEtiqueta()) {
   const termica = tipo === "termica";
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Caderno de códigos</title><style>${termica ? CSS_TERMICA : ""}
 ${termica ? "" : `    @page { size: A4; margin: 10mm; }
@@ -40,17 +42,21 @@ ${termica ? "" : `    @page { size: A4; margin: 10mm; }
     .cel { border: 1px dashed #999; border-radius: 3mm; padding: 4mm; text-align: center; break-inside: avoid; }
     .n { font-weight: bold; font-size: 15pt; margin-bottom: 1mm; }
     .p { font-size: 13pt; margin-bottom: 2mm; }
-    svg { width: 80mm; max-width: 100%; height: auto; }
+    img { width: 80mm; max-width: 100%; height: auto; display: block; margin: 0 auto; }
   `}
   </style></head><body><div class="grade">
-    ${itens.map((p) => `<div class="cel"><div class="n">${esc(p.nome)}</div><div class="p">${esc(fmt(p.preco))}</div>${svgBarras(p.codigo_barras)}</div>`).join("")}
+    ${itens.map((p) => `<div class="cel"><div class="n">${esc(p.nome)}</div><div class="p">${esc(fmt(p.preco))}</div>${imgBarras(p.codigo_barras)}</div>`).join("")}
   </div></body></html>`;
-  const frame = document.createElement("iframe");
-  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
-  document.body.appendChild(frame);
-  const doc = frame.contentWindow.document;
-  doc.open(); doc.write(html); doc.close();
-  setTimeout(() => { frame.contentWindow.focus(); frame.contentWindow.print(); setTimeout(() => frame.remove(), 1500); }, 300);
+  return html;
+}
+
+export function imprimirFolha(itens, tipo = impressoraEtiqueta()) {
+  imprimirHtml(htmlFolha(itens, tipo));
+}
+
+// Plano B: abre a folha numa aba nova pra imprimir com Ctrl+P
+export function abrirFolhaEmAba(itens, tipo = impressoraEtiqueta()) {
+  return abrirHtmlEmAba(htmlFolha(itens, tipo).replace("</body>", `<script>setTimeout(()=>print(),600)</script></body>`));
 }
 
 export default function CadernoCodigos({ produtos, onFechar, onAtualizou }) {
@@ -59,6 +65,7 @@ export default function CadernoCodigos({ produtos, onFechar, onAtualizou }) {
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState("");
   const [impressora, setImpressora] = useState(impressoraEtiqueta);
+  const [ultimos, setUltimos] = useState(null);   // última folha preparada (pra abrir em outra aba)
 
   const lista = useMemo(() => {
     const t = semAcento(busca.trim());
@@ -86,6 +93,7 @@ export default function CadernoCodigos({ produtos, onFechar, onAtualizou }) {
         prontos.push({ ...p, codigo_barras: codigo });
       }
       if (semCodigo) onAtualizou?.();
+      setUltimos(prontos);
       imprimirFolha(prontos, impressora);
     } catch (e) {
       setErro(e.message);
@@ -120,6 +128,14 @@ export default function CadernoCodigos({ produtos, onFechar, onAtualizou }) {
           ))}
         </div>
         {erro && <div style={{ ...base.alert(C.red), marginBottom: 10 }}>{erro}</div>}
+        {ultimos && (
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+            Deu "visualização falhou"?{" "}
+            <button style={base.btnSm(C.card2, C.text)} onClick={() => { if (!abrirFolhaEmAba(ultimos, impressora)) setErro("O navegador bloqueou a aba nova. Libere pop-ups pra este site e tente de novo."); }}>
+              📄 Abrir a folha em outra aba
+            </button>
+          </div>
+        )}
         <div style={base.row}>
           <button style={{ ...base.btn(), opacity: escolhidos.length && !gerando ? 1 : 0.5 }} disabled={!escolhidos.length || gerando} onClick={gerar}>
             {gerando ? "Preparando…" : `🖨️ Imprimir ${escolhidos.length || ""} código(s)${semCodigo ? ` · cria ${semCodigo} novo(s)` : ""}`}

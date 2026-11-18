@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef, useDeferredValue, useMemo } from "react";
-import CadernoCodigos, { imprimirFolha } from "./CadernoCodigos";
+import CadernoCodigos, { imprimirFolha, abrirFolhaEmAba } from "./CadernoCodigos";
 import { codigoInterno } from "./shared/codigos.mjs";
 import { supabase, C, base, fmt, SCHEMA, semEstoque, resumoNomes } from "./shared/constants";
 import { temVolume, textoGarrafa, unidadeFracao } from "./shared/estoque";
@@ -467,6 +467,10 @@ export default function Estoque() {
                       </button>
                       <input type="number" min="1" max="30" value={copiasEtiqueta} onChange={e => setCopiasEtiqueta(e.target.value)} style={{ ...base.input, width: 64, padding: "6px 8px" }} title="Quantas etiquetas" />
                       <span style={{ fontSize: 11, color: C.muted }}>cópias</span>
+                      <button type="button" style={base.btnSm(C.card2, C.muted)} title="Se a visualização de impressão falhar"
+                        onClick={() => { if (!abrirFolhaEmAba(Array.from({ length: Math.min(30, Math.max(1, Number(copiasEtiqueta) || 1)) }, () => ({ nome: editForm.nome, preco: editForm.preco, codigo_barras: String(editForm.codigo_barras).trim() })))) alert("O navegador bloqueou a aba nova. Libere pop-ups pra este site."); }}>
+                        📄 Abrir em outra aba
+                      </button>
                     </>)}
                   </div>
                   {String(editForm.codigo_barras || "").trim() !== String(editModal.codigo_barras || "").trim() && (

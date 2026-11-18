@@ -2,6 +2,7 @@
 // Imprime por um iframe escondido: funciona no app instalado e não é barrado como pop-up.
 import { supabase, MARCA } from "./constants";
 import { NOME_FORMA } from "./pagamento";
+import { imprimirHtml } from "./imprimir";
 
 const brl = (v) => "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -48,16 +49,7 @@ export function htmlCupom({ loja = {}, numero, itens, subtotal, desconto = 0, to
 export async function imprimirCupom(venda) {
   const loja = await dadosLoja().catch(() => ({}));
   const html = htmlCupom({ ...venda, loja });
-  const frame = document.createElement("iframe");
-  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
-  document.body.appendChild(frame);
-  const doc = frame.contentWindow.document;
-  doc.open(); doc.write(html); doc.close();
-  setTimeout(() => {
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
-    setTimeout(() => frame.remove(), 1000);
-  }, 250);
+  imprimirHtml(html);
 }
 
 // Imprime um texto simples (ex.: fechamento de caixa) na impressora de cupom 80 mm.
@@ -67,10 +59,5 @@ export function imprimirTexto(titulo, texto) {
     @page { margin: 0; }
     body { font-family: 'Courier New', monospace; font-size: 12px; width: 72mm; padding: 4mm 3mm; margin: 0; color: #000; white-space: pre-wrap; line-height: 1.35; }
   </style></head><body>${esc(limpo)}\n\n.</body></html>`;
-  const frame = document.createElement("iframe");
-  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
-  document.body.appendChild(frame);
-  const doc = frame.contentWindow.document;
-  doc.open(); doc.write(html); doc.close();
-  setTimeout(() => { frame.contentWindow.focus(); frame.contentWindow.print(); setTimeout(() => frame.remove(), 1000); }, 250);
+  imprimirHtml(html);
 }
