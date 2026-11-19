@@ -31,12 +31,14 @@ function textoResumo(caixa, r, contado, diferenca, movs = []) {
     `Aberto: ${dataHora(caixa.aberto_em)} por ${caixa.aberto_por || "—"}`,
     `Fechado: ${dataHora(caixa.fechado_em || new Date())} por ${caixa.fechado_por || "—"}`,
     "",
-    `Vendas: ${r.qtdVendas} · Total ${fmt(r.totalVendas)}`,
+    `Vendas: ${r.qtdVendas} · Total vendido (todas as formas) ${fmt(r.totalVendas)}`,
     ...FORMAS.map(f => `  ${f.label}: ${fmt(r.porForma[f.id] || 0)}`),
     "",
-    `Troco inicial: ${fmt(caixa.troco_inicial)}`,
-    `Suprimentos: ${fmt(r.suprimentos)}`,
-    `Sangrias: ${fmt(r.sangrias)}`,
+    "GAVETA (só dinheiro):",
+    `  Troco inicial: ${fmt(caixa.troco_inicial)}`,
+    `+ Vendas em dinheiro: ${fmt(r.porForma.dinheiro || 0)}`,
+    `+ Suprimentos: ${fmt(r.suprimentos)}`,
+    `- Sangrias: ${fmt(r.sangrias)}`,
     `Dinheiro esperado na gaveta: ${fmt(r.esperado)}`,
     `Dinheiro contado: ${fmt(contado)}`,
     `Diferença: ${diferenca === 0 ? "bateu certinho ✅" : `${diferenca > 0 ? "sobrou" : "faltou"} ${fmt(Math.abs(diferenca))}`}`,
@@ -196,7 +198,7 @@ export default function Caixa({ usuario }) {
           <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 4 }}>Caixa fechado</div>
           <div style={{ fontSize: 28, fontWeight: 900, color: corDif(resultado.diferenca), marginBottom: 8 }}>{textoDif(resultado.diferenca)}</div>
           <div style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>
-            Esperado na gaveta {fmt(resultado.r.esperado)} · Contado {fmt(resultado.contado)} · Vendas {fmt(resultado.r.totalVendas)}
+            Esperado na gaveta {fmt(resultado.r.esperado)} · Contado {fmt(resultado.contado)} · Total vendido (todas as formas) {fmt(resultado.r.totalVendas)}
           </div>
           <div style={base.row}>
             <button style={base.btnSm(C.green, "#fff")} onClick={() => imprimirTexto("Fechamento de caixa", textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca, resultado.movs))}>🖨️ Imprimir</button>
@@ -242,7 +244,7 @@ export default function Caixa({ usuario }) {
               ))}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, fontSize: 14, color: C.text }}>
-              <span>{r.qtdVendas} venda{r.qtdVendas === 1 ? "" : "s"} · total <b style={{ color: C.accent }}>{fmt(r.totalVendas)}</b></span>
+              <span>{r.qtdVendas} venda{r.qtdVendas === 1 ? "" : "s"} · total vendido (todas as formas) <b style={{ color: C.accent }}>{fmt(r.totalVendas)}</b></span>
               {gestao && <span>Dinheiro que deve ter na gaveta: <b style={{ color: C.accent }}>{fmt(r.esperado)}</b></span>}
             </div>
           </div>
@@ -343,8 +345,9 @@ export default function Caixa({ usuario }) {
               {FORMAS.map(f => (
                 <div key={f.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.text, padding: "4px 0" }}><span>{f.icon} {f.label}</span><span>{fmt(rh.porForma[f.id] || 0)}</span></div>
               ))}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800, color: C.accent, padding: "8px 0", borderTop: `1px solid ${C.border}`, marginTop: 6 }}><span>Total ({rh.qtdVendas} vendas)</span><span>{fmt(rh.totalVendas)}</span></div>
-              {[["Troco inicial", detalhe.troco_inicial], ["Suprimentos", rh.suprimentos], ["Sangrias", rh.sangrias], ["Esperado na gaveta", detalhe.esperado_dinheiro], ["Contado", detalhe.contado_dinheiro]].map(([l, v]) => (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800, color: C.accent, padding: "8px 0", borderTop: `1px solid ${C.border}`, marginTop: 6 }}><span>Total vendido ({rh.qtdVendas} vendas, todas as formas)</span><span>{fmt(rh.totalVendas)}</span></div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginTop: 10 }}>Gaveta (só dinheiro)</div>
+              {[["Troco inicial", detalhe.troco_inicial], ["+ Vendas em dinheiro", rh.porForma.dinheiro || 0], ["+ Suprimentos", rh.suprimentos], ["− Sangrias", rh.sangrias], ["= Esperado na gaveta", detalhe.esperado_dinheiro], ["Contado", detalhe.contado_dinheiro]].map(([l, v]) => (
                 <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, padding: "3px 0" }}><span>{l}</span><span>{fmt(v)}</span></div>
               ))}
               {movsDetalhe.length > 0 && (
