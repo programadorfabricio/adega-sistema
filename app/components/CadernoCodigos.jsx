@@ -19,10 +19,11 @@ function imgBarras(codigo) {
 
 // Etiqueta pequena pra bobina: barra de 0,375 mm (= 3 pontos da impressora de 203 dpi, fica nítida),
 // código EAN-13 com ~36 mm de largura. O leitor USB lê tranquilo nesse tamanho.
-function imgBarrasPequeno(codigo) {
+// pontos = largura da barra em pontos da impressora (3 = 0,375 mm; 2 = 0,25 mm no "mini")
+function imgBarrasPequeno(codigo, pontos = 3) {
   const canvas = document.createElement("canvas");
-  JsBarcode(canvas, codigo, { format: formatoBarras(codigo), width: 3, height: 60, margin: 0, displayValue: false });
-  const mm = ((canvas.width / 3) * 0.375).toFixed(2);
+  JsBarcode(canvas, codigo, { format: formatoBarras(codigo), width: pontos, height: 60, margin: 0, displayValue: false });
+  const mm = ((canvas.width / pontos) * pontos * 0.125).toFixed(2);
   return `<img class="b" style="width:${mm}mm" src="${canvas.toDataURL("image/png")}" alt="${esc(codigo)}"><div class="d">${esc(codigo)}</div>`;
 }
 
@@ -45,7 +46,24 @@ const CSS_TERMICA = `
     img.b { height: 9mm; display: block; image-rendering: pixelated; }
     .d { font-size: 7pt; letter-spacing: 0.5px; margin-top: 0.3mm; }`;
 
+// Mini: 2 etiquetas por linha na bobina (~34 x 14 mm cada), pra colar várias juntas no caderno
+const CSS_MINI = `
+    @page { margin: 0; }
+    body { font-family: Arial, sans-serif; margin: 0; width: 72mm; padding: 1mm 0; }
+    .grade { display: grid; grid-template-columns: 1fr 1fr; }
+    .cel { text-align: center; padding: 1.2mm 0.5mm; border-bottom: 1px dashed #000; break-inside: avoid; overflow: hidden; }
+    .cel:nth-child(odd) { border-right: 1px dashed #000; }
+    .n { font-weight: bold; font-size: 7pt; line-height: 1.1; height: 2.2em; overflow: hidden; }
+    .p { font-size: 7.5pt; margin: 0.3mm 0; }
+    img.b { height: 7mm; display: block; margin: 0 auto; image-rendering: pixelated; }
+    .d { font-size: 6pt; letter-spacing: 0.3px; }`;
+
 export function htmlFolha(itens, tipo = impressoraEtiqueta()) {
+  if (tipo === "mini") {
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Caderno de códigos</title><style>${CSS_MINI}</style></head><body><div class="grade">
+    ${itens.map((p) => `<div class="cel"><div class="n">${esc(p.nome)}</div><div class="p">${esc(fmt(p.preco))}</div>${imgBarrasPequeno(p.codigo_barras, 2)}</div>`).join("")}
+  </div></body></html>`;
+  }
   const termica = tipo === "termica";
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Caderno de códigos</title><style>${termica ? CSS_TERMICA : ""}
 ${termica ? "" : `    @page { size: A4; margin: 10mm; }
@@ -138,7 +156,7 @@ export default function CadernoCodigos({ produtos, onFechar, onAtualizou }) {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, color: C.muted }}>Impressora:</span>
-          {[["termica", "🧾 Pequena (cupom)"], ["a4", "📄 Folha A4"]].map(([v, t]) => (
+          {[["mini", "🔹 Mini (2 por linha)"], ["termica", "🧾 Pequena (cupom)"], ["a4", "📄 Folha A4"]].map(([v, t]) => (
             <button key={v} style={base.btnSm(impressora === v ? C.accent : C.card2, impressora === v ? "#000" : C.text)} onClick={() => { setImpressora(v); salvarImpressoraEtiqueta(v); }}>{t}</button>
           ))}
         </div>
