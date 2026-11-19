@@ -17,6 +17,15 @@ function imgBarras(codigo) {
   return `<img src="${canvas.toDataURL("image/png")}" alt="${esc(codigo)}">`;
 }
 
+// Etiqueta pequena pra bobina: barra de 0,375 mm (= 3 pontos da impressora de 203 dpi, fica nítida),
+// código EAN-13 com ~36 mm de largura. O leitor USB lê tranquilo nesse tamanho.
+function imgBarrasPequeno(codigo) {
+  const canvas = document.createElement("canvas");
+  JsBarcode(canvas, codigo, { format: formatoBarras(codigo), width: 3, height: 60, margin: 0, displayValue: false });
+  const mm = ((canvas.width / 3) * 0.375).toFixed(2);
+  return `<img class="b" style="width:${mm}mm" src="${canvas.toDataURL("image/png")}" alt="${esc(codigo)}"><div class="d">${esc(codigo)}</div>`;
+}
+
 // Impressora das etiquetas: "termica" (bobina de cupom 58/80 mm) ou "a4". Fica lembrado no aparelho.
 export function impressoraEtiqueta() {
   try { return localStorage.getItem("impressoraEtiqueta") || "termica"; } catch { return "termica"; }
@@ -25,12 +34,16 @@ export function salvarImpressoraEtiqueta(v) { try { localStorage.setItem("impres
 
 const CSS_TERMICA = `
     @page { margin: 0; }
-    body { font-family: Arial, sans-serif; margin: 0; width: 72mm; padding: 2mm 0; }
+    body { font-family: Arial, sans-serif; margin: 0; width: 72mm; padding: 1mm 0; }
     .grade { display: block; }
-    .cel { text-align: center; padding: 3mm 1mm 4mm; border-bottom: 1px dashed #000; break-inside: avoid; }
-    .n { font-weight: bold; font-size: 13pt; margin-bottom: 1mm; }
-    .p { font-size: 12pt; margin-bottom: 1mm; }
-    img { width: 68mm; height: auto; display: block; margin: 0 auto; }`;
+    /* nome e preço à esquerda, código à direita: ~15 mm de altura por etiqueta */
+    .cel { display: flex; align-items: center; gap: 2mm; padding: 1.5mm 1mm; border-bottom: 1px dashed #000; break-inside: avoid; }
+    .txt { flex: 1; min-width: 0; }
+    .n { font-weight: bold; font-size: 9pt; line-height: 1.15; max-height: 3.5em; overflow: hidden; }
+    .p { font-size: 10pt; margin-top: 0.5mm; }
+    .cod { flex: none; text-align: center; padding: 0 2mm; }
+    img.b { height: 9mm; display: block; image-rendering: pixelated; }
+    .d { font-size: 7pt; letter-spacing: 0.5px; margin-top: 0.3mm; }`;
 
 export function htmlFolha(itens, tipo = impressoraEtiqueta()) {
   const termica = tipo === "termica";
@@ -45,7 +58,9 @@ ${termica ? "" : `    @page { size: A4; margin: 10mm; }
     img { width: 80mm; max-width: 100%; height: auto; display: block; margin: 0 auto; }
   `}
   </style></head><body><div class="grade">
-    ${itens.map((p) => `<div class="cel"><div class="n">${esc(p.nome)}</div><div class="p">${esc(fmt(p.preco))}</div>${imgBarras(p.codigo_barras)}</div>`).join("")}
+    ${itens.map((p) => termica
+      ? `<div class="cel"><div class="txt"><div class="n">${esc(p.nome)}</div><div class="p">${esc(fmt(p.preco))}</div></div><div class="cod">${imgBarrasPequeno(p.codigo_barras)}</div></div>`
+      : `<div class="cel"><div class="n">${esc(p.nome)}</div><div class="p">${esc(fmt(p.preco))}</div>${imgBarras(p.codigo_barras)}</div>`).join("")}
   </div></body></html>`;
   return html;
 }
