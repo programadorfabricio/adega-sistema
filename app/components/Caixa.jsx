@@ -262,6 +262,12 @@ export default function Caixa({ usuario }) {
         </>
       )}
 
+      {!gestao && (
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
+          Os caixas anteriores (com as sangrias) aparecem só pra quem entra como dono ou gerente. Você entrou como <b>{usuario?.cargo || "—"}</b>.
+        </div>
+      )}
+
       {/* Histórico */}
       {gestao && (
         <div style={base.card}>
