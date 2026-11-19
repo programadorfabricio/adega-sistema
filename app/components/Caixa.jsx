@@ -25,7 +25,7 @@ function calcular(caixa, vendas, movimentos) {
   return { porForma, totalVendas, qtdVendas: vendas.length, sangrias, suprimentos, esperado };
 }
 
-function textoResumo(caixa, r, contado, diferenca) {
+function textoResumo(caixa, r, contado, diferenca, movs = []) {
   const linhas = [
     `📋 FECHAMENTO DE CAIXA — ${MARCA.nome}`,
     `Aberto: ${dataHora(caixa.aberto_em)} por ${caixa.aberto_por || "—"}`,
@@ -41,6 +41,10 @@ function textoResumo(caixa, r, contado, diferenca) {
     `Dinheiro contado: ${fmt(contado)}`,
     `Diferença: ${diferenca === 0 ? "bateu certinho ✅" : `${diferenca > 0 ? "sobrou" : "faltou"} ${fmt(Math.abs(diferenca))}`}`,
   ];
+  if (movs.length) {
+    linhas.push("", "Sangrias e suprimentos:");
+    movs.forEach(m => linhas.push(`  ${hora(m.created_at)} ${m.tipo === "sangria" ? "Sangria −" : "Suprimento +"}${fmt(m.valor)} ${m.motivo || ""}${m.usuario ? ` (${m.usuario})` : ""}`));
+  }
   if (caixa.observacao) linhas.push("", `Obs: ${caixa.observacao}`);
   return linhas.join("\n");
 }
@@ -78,6 +82,12 @@ export default function Caixa({ usuario }) {
   const [obs, setObs] = useState("");
   const [resultado, setResultado] = useState(null);
   const [detalhe, setDetalhe] = useState(null);
+  const [movsDetalhe, setMovsDetalhe] = useState([]);
+  const abrirDetalhe = async (cx) => {
+    setDetalhe(cx); setMovsDetalhe([]);
+    const { data } = await supabase.from("caixa_movimentos").select("*").eq("caixa_id", cx.id).order("created_at");
+    setMovsDetalhe(data || []);
+  };
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState("");
 
@@ -147,7 +157,7 @@ export default function Caixa({ usuario }) {
       resumo: { porForma: final.porForma, qtdVendas: final.qtdVendas, sangrias: final.sangrias, suprimentos: final.suprimentos },
     };
     await supabase.from("caixas").update(dados).eq("id", caixa.id);
-    setResultado({ caixa: { ...caixa, ...dados }, r: final, contado: valorContado, diferenca });
+    setResultado({ caixa: { ...caixa, ...dados }, r: final, contado: valorContado, diferenca, movs: (ms || []).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))) });
     setFechando(false); setContado(""); setObs(""); setSalvando(false); load();
   };
 
@@ -189,8 +199,8 @@ export default function Caixa({ usuario }) {
             Esperado na gaveta {fmt(resultado.r.esperado)} · Contado {fmt(resultado.contado)} · Vendas {fmt(resultado.r.totalVendas)}
           </div>
           <div style={base.row}>
-            <button style={base.btnSm(C.green, "#fff")} onClick={() => imprimirTexto("Fechamento de caixa", textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca))}>🖨️ Imprimir</button>
-            <button style={base.btnSm()} onClick={() => copiar(textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca))}>📋 Copiar resumo</button>
+            <button style={base.btnSm(C.green, "#fff")} onClick={() => imprimirTexto("Fechamento de caixa", textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca, resultado.movs))}>🖨️ Imprimir</button>
+            <button style={base.btnSm()} onClick={() => copiar(textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca, resultado.movs))}>📋 Copiar resumo</button>
             <button style={base.btnSm(C.card2, C.muted)} onClick={() => setResultado(null)}>Fechar</button>
           </div>
         </div>
@@ -258,7 +268,7 @@ export default function Caixa({ usuario }) {
           <div style={base.sectionTitle}>Caixas anteriores</div>
           {historico.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>Nenhum caixa fechado ainda.</div>}
           {historico.map(cx => (
-            <button key={cx.id} onClick={() => setDetalhe(cx)} style={{ width: "100%", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, padding: "10px 0", cursor: "pointer", textAlign: "left" }}>
+            <button key={cx.id} onClick={() => abrirDetalhe(cx)} style={{ width: "100%", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", background: "transparent", border: "none", borderBottom: `1px solid ${C.border}`, padding: "10px 0", cursor: "pointer", textAlign: "left" }}>
               <span style={{ flex: 1, minWidth: 160, fontSize: 13, color: C.text }}>
                 {dataHora(cx.aberto_em)} → {hora(cx.fechado_em)}
                 <span style={{ color: C.muted }}> · {cx.fechado_por || cx.aberto_por || "—"}</span>
@@ -331,11 +341,24 @@ export default function Caixa({ usuario }) {
               {[["Troco inicial", detalhe.troco_inicial], ["Suprimentos", rh.suprimentos], ["Sangrias", rh.sangrias], ["Esperado na gaveta", detalhe.esperado_dinheiro], ["Contado", detalhe.contado_dinheiro]].map(([l, v]) => (
                 <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, padding: "3px 0" }}><span>{l}</span><span>{fmt(v)}</span></div>
               ))}
+              {movsDetalhe.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 4 }}>Sangrias e suprimentos</div>
+                  {movsDetalhe.map(m => (
+                    <div key={m.id} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, padding: "4px 0", borderBottom: `1px solid ${C.border}` }}>
+                      <span style={base.tag(m.tipo === "sangria" ? C.red : C.blue)}>{m.tipo === "sangria" ? "Sangria" : "Suprimento"}</span>
+                      <span style={{ flex: 1, color: C.text }}>{m.motivo || "—"}{m.usuario ? <span style={{ color: C.muted }}> · {m.usuario}</span> : null}</span>
+                      <span style={{ fontSize: 12, color: C.muted }}>{hora(m.created_at)}</span>
+                      <b style={{ color: m.tipo === "sangria" ? C.red : C.blue }}>{m.tipo === "sangria" ? "−" : "+"}{fmt(m.valor)}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div style={{ fontSize: 22, fontWeight: 900, color: corDif(detalhe.diferenca), margin: "12px 0" }}>{textoDif(detalhe.diferenca)}</div>
               {detalhe.observacao && <div style={{ fontSize: 13, color: C.text, marginBottom: 12 }}>📝 {detalhe.observacao}</div>}
               <div style={base.row}>
-                <button style={base.btnSm(C.green, "#fff")} onClick={() => imprimirTexto("Fechamento de caixa", textoResumo(detalhe, rh, Number(detalhe.contado_dinheiro), Number(detalhe.diferenca)))}>🖨️ Imprimir</button>
-                <button style={base.btnSm()} onClick={() => copiar(textoResumo(detalhe, rh, Number(detalhe.contado_dinheiro), Number(detalhe.diferenca)))}>📋 Copiar resumo</button>
+                <button style={base.btnSm(C.green, "#fff")} onClick={() => imprimirTexto("Fechamento de caixa", textoResumo(detalhe, rh, Number(detalhe.contado_dinheiro), Number(detalhe.diferenca), movsDetalhe))}>🖨️ Imprimir</button>
+                <button style={base.btnSm()} onClick={() => copiar(textoResumo(detalhe, rh, Number(detalhe.contado_dinheiro), Number(detalhe.diferenca), movsDetalhe))}>📋 Copiar resumo</button>
                 <button style={base.btnSm(C.card2, C.muted)} onClick={() => setDetalhe(null)}>Fechar</button>
               </div>
             </div>
