@@ -25,21 +25,48 @@ function calcular(caixa, vendas, movimentos) {
   return { porForma, totalVendas, qtdVendas: vendas.length, sangrias, suprimentos, esperado };
 }
 
+// Quadro do dono: o que entrou em cada forma + a conta da gaveta (sangria já descontada)
+function ResumoEntradas({ troco, r, contado, diferenca }) {
+  const linha = (l, v, cor, forte) => (
+    <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: forte ? 15 : 13, fontWeight: forte ? 900 : 500, color: cor || C.text, padding: "4px 0", borderTop: forte ? `1px solid ${C.border}` : "none", marginTop: forte ? 4 : 0 }}>
+      <span>{l}</span><span>{v}</span>
+    </div>
+  );
+  return (
+    <div className="grid-2col" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
+      <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: C.muted, marginBottom: 6 }}>ENTROU EM CADA FORMA ({r.qtdVendas} venda{r.qtdVendas === 1 ? "" : "s"})</div>
+        {FORMAS.map(f => linha(`${f.icon} ${f.label}`, fmt(r.porForma[f.id] || 0)))}
+      </div>
+      <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: C.muted, marginBottom: 6 }}>DINHEIRO NA GAVETA (o sistema já desconta a sangria)</div>
+        {linha("Troco inicial", fmt(troco))}
+        {linha("+ Vendas em dinheiro", fmt(r.porForma.dinheiro || 0), C.green)}
+        {linha("+ Suprimentos", fmt(r.suprimentos), C.blue)}
+        {linha("− Sangrias", fmt(r.sangrias), C.red)}
+        {linha("= Tem que ter na gaveta", fmt(r.esperado), C.accent, true)}
+        {contado != null && linha("Contado", fmt(contado))}
+        {contado != null && linha("Diferença", diferenca === 0 ? "bateu ✅" : `${diferenca > 0 ? "sobrou" : "faltou"} ${fmt(Math.abs(diferenca))}`, corDif(diferenca), true)}
+      </div>
+    </div>
+  );
+}
+
 function textoResumo(caixa, r, contado, diferenca, movs = []) {
   const linhas = [
     `📋 FECHAMENTO DE CAIXA — ${MARCA.nome}`,
     `Aberto: ${dataHora(caixa.aberto_em)} por ${caixa.aberto_por || "—"}`,
     `Fechado: ${dataHora(caixa.fechado_em || new Date())} por ${caixa.fechado_por || "—"}`,
     "",
-    `Vendas: ${r.qtdVendas} · Total vendido (todas as formas) ${fmt(r.totalVendas)}`,
+    `ENTROU EM CADA FORMA (${r.qtdVendas} vendas):`,
     ...FORMAS.map(f => `  ${f.label}: ${fmt(r.porForma[f.id] || 0)}`),
     "",
-    "GAVETA (só dinheiro):",
+    "DINHEIRO NA GAVETA:",
     `  Troco inicial: ${fmt(caixa.troco_inicial)}`,
     `+ Vendas em dinheiro: ${fmt(r.porForma.dinheiro || 0)}`,
     `+ Suprimentos: ${fmt(r.suprimentos)}`,
     `- Sangrias: ${fmt(r.sangrias)}`,
-    `Dinheiro esperado na gaveta: ${fmt(r.esperado)}`,
+    `= Tem que ter na gaveta: ${fmt(r.esperado)}`,
     `Dinheiro contado: ${fmt(contado)}`,
     `Diferença: ${diferenca === 0 ? "bateu certinho ✅" : `${diferenca > 0 ? "sobrou" : "faltou"} ${fmt(Math.abs(diferenca))}`}`,
   ];
@@ -69,7 +96,8 @@ export function useCaixaAberto() {
 }
 
 export default function Caixa({ usuario }) {
-  const gestao = usuario?.cargo === "admin" || usuario?.cargo === "gerente";
+  // Conferência do caixa (quanto tem que ter, sobra/falta, caixas anteriores): só o dono (admin)
+  const gestao = usuario?.cargo === "admin";
   const [caixa, setCaixa] = useState(null);
   const [vendas, setVendas] = useState([]);
   const [movimentos, setMovimentos] = useState([]);
@@ -193,13 +221,18 @@ export default function Caixa({ usuario }) {
       {aviso && <div style={base.alert(C.green)}>✅ {aviso}</div>}
 
       {/* Resultado do fechamento que acabou de acontecer */}
-      {resultado && (
+      {resultado && !gestao && (
+        <div style={{ ...base.card, marginBottom: 20 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 4 }}>✅ Caixa fechado</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>Você informou {fmt(resultado.contado)} na gaveta. A conferência fica com o responsável.</div>
+          <button style={base.btnSm(C.card2, C.muted)} onClick={() => setResultado(null)}>Ok</button>
+        </div>
+      )}
+      {resultado && gestao && (
         <div style={{ ...base.card, marginBottom: 20, border: `1px solid ${corDif(resultado.diferenca)}66` }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 4 }}>Caixa fechado</div>
-          <div style={{ fontSize: 28, fontWeight: 900, color: corDif(resultado.diferenca), marginBottom: 8 }}>{textoDif(resultado.diferenca)}</div>
-          <div style={{ fontSize: 13, color: C.muted, marginBottom: 14 }}>
-            Esperado na gaveta {fmt(resultado.r.esperado)} · Contado {fmt(resultado.contado)} · Total vendido (todas as formas) {fmt(resultado.r.totalVendas)}
-          </div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: corDif(resultado.diferenca), marginBottom: 12 }}>{textoDif(resultado.diferenca)}</div>
+          <div style={{ marginBottom: 14 }}><ResumoEntradas troco={resultado.caixa.troco_inicial} r={resultado.r} contado={resultado.contado} diferenca={resultado.diferenca} /></div>
           <div style={base.row}>
             <button style={base.btnSm(C.green, "#fff")} onClick={() => imprimirTexto("Fechamento de caixa", textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca, resultado.movs))}>🖨️ Imprimir</button>
             <button style={base.btnSm()} onClick={() => copiar(textoResumo(resultado.caixa, resultado.r, resultado.contado, resultado.diferenca, resultado.movs))}>📋 Copiar resumo</button>
@@ -235,18 +268,9 @@ export default function Caixa({ usuario }) {
               </div>
             </div>
 
-            <div className="grid-4col" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 12 }}>
-              {FORMAS.map(f => (
-                <div key={f.id} style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>{f.icon} {f.label}</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: C.text }}>{fmt(r.porForma[f.id] || 0)}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, fontSize: 14, color: C.text }}>
-              <span>{r.qtdVendas} venda{r.qtdVendas === 1 ? "" : "s"} · total vendido (todas as formas) <b style={{ color: C.accent }}>{fmt(r.totalVendas)}</b></span>
-              {gestao && <span>Dinheiro que deve ter na gaveta: <b style={{ color: C.accent }}>{fmt(r.esperado)}</b></span>}
-            </div>
+            {gestao
+              ? <ResumoEntradas troco={caixa.troco_inicial} r={r} />
+              : <div style={{ fontSize: 13, color: C.muted }}>Lance as vendas normalmente. No fim do dia, conte o dinheiro da gaveta e clique em <b>Fechar caixa</b>.</div>}
           </div>
 
           <div style={{ ...base.card, marginBottom: 24 }}>
@@ -266,7 +290,7 @@ export default function Caixa({ usuario }) {
 
       {!gestao && (
         <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
-          Os caixas anteriores (com as sangrias) aparecem só pra quem entra como dono ou gerente. Você entrou como <b>{usuario?.cargo || "—"}</b>.
+          A conferência do caixa e os caixas anteriores aparecem só pra quem entra como dono (admin). Você entrou como <b>{usuario?.cargo || "—"}</b>.
         </div>
       )}
 
@@ -281,7 +305,7 @@ export default function Caixa({ usuario }) {
                 {dataHora(cx.aberto_em)} → {hora(cx.fechado_em)}
                 <span style={{ color: C.muted }}> · {cx.fechado_por || cx.aberto_por || "—"}</span>
               </span>
-              <span style={{ fontSize: 13, color: C.accent, fontWeight: 700 }}>{fmt(cx.total_vendas)}</span>
+              <span style={{ fontSize: 12, color: C.muted }}>gaveta {fmt(cx.contado_dinheiro)}</span>
               <span style={base.tag(corDif(cx.diferenca))}>{textoDif(cx.diferenca)}</span>
             </button>
           ))}
@@ -314,7 +338,7 @@ export default function Caixa({ usuario }) {
           <div style={base.modalBox} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 4 }}>🔒 Fechar caixa</div>
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
-              Conte o dinheiro da gaveta e digite o valor. {gestao ? "" : "O sistema confere com as vendas depois que você confirmar."}
+              Conte o dinheiro da gaveta e digite o valor.
             </div>
             {gestao && (
               <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 13, color: C.text }}>
@@ -342,14 +366,7 @@ export default function Caixa({ usuario }) {
             <div style={base.modalBox} onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 4 }}>Caixa de {dataHora(detalhe.aberto_em)}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 14 }}>Aberto por {detalhe.aberto_por || "—"} · fechado às {hora(detalhe.fechado_em)} por {detalhe.fechado_por || "—"}</div>
-              {FORMAS.map(f => (
-                <div key={f.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.text, padding: "4px 0" }}><span>{f.icon} {f.label}</span><span>{fmt(rh.porForma[f.id] || 0)}</span></div>
-              ))}
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800, color: C.accent, padding: "8px 0", borderTop: `1px solid ${C.border}`, marginTop: 6 }}><span>Total vendido ({rh.qtdVendas} vendas, todas as formas)</span><span>{fmt(rh.totalVendas)}</span></div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginTop: 10 }}>Gaveta (só dinheiro)</div>
-              {[["Troco inicial", detalhe.troco_inicial], ["+ Vendas em dinheiro", rh.porForma.dinheiro || 0], ["+ Suprimentos", rh.suprimentos], ["− Sangrias", rh.sangrias], ["= Esperado na gaveta", detalhe.esperado_dinheiro], ["Contado", detalhe.contado_dinheiro]].map(([l, v]) => (
-                <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, padding: "3px 0" }}><span>{l}</span><span>{fmt(v)}</span></div>
-              ))}
+              <ResumoEntradas troco={detalhe.troco_inicial} r={rh} contado={Number(detalhe.contado_dinheiro)} diferenca={Number(detalhe.diferenca)} />
               {movsDetalhe.length > 0 && (
                 <div style={{ marginTop: 10 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 4 }}>Sangrias e suprimentos</div>
